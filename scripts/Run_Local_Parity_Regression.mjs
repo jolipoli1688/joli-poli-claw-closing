@@ -138,7 +138,12 @@ const reloadedDraft = await request(`/api/closings/${encodeURIComponent(draft.cl
 assert(reloadedDraft.products.length === 3, "draft reload should retain all product rows");
 const savedRefill = reloadedDraft.products.find(row => row.Product_ID === `${runId}-PRODUCT-A`);
 assert(savedRefill && savedRefill.Refill_Qty === 3 && savedRefill.Qty_Used === 5, "signed refill history or Qty Used persistence mismatch");
-const finalized = await request("/api/closings/save", { method: "POST", body: JSON.stringify({ ...payload, closing_id: draft.closing_id, workflow_status: "Finalized" }) });
+const editedDraftPayload = { ...payload, closing_id: draft.closing_id, notes: "Automated local parity fixture (edited draft).", workflow_status: "Draft" };
+const editedDraft = await request("/api/closings/save", { method: "POST", body: JSON.stringify(editedDraftPayload) });
+assert(editedDraft.closing_id === draft.closing_id, "draft edit should retain its closing ID");
+const reloadedEditedDraft = await request(`/api/closings/${encodeURIComponent(draft.closing_id)}`);
+assert(reloadedEditedDraft.header.Notes === editedDraftPayload.notes, "edited draft should persist its changes");
+const finalized = await request("/api/closings/save", { method: "POST", body: JSON.stringify({ ...editedDraftPayload, workflow_status: "Finalized" }) });
 assert(finalized.workflow_status === "Finalized", "finalization should succeed with balanced data");
 assert(finalized.report_path && finalized.report_path.includes("local_data"), "finalization should generate its report only inside local_data");
 await expectError("/api/closings/save", { method: "POST", body: JSON.stringify({ ...payload, closing_id: draft.closing_id, notes: "attempt overwrite", workflow_status: "Draft" }) }, "finalized closing cannot be overwritten");
