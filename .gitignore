@@ -1,0 +1,18 @@
+# Imported proprietary/local baseline is kept local by default
+legacy/windows-v2.1.78/
+
+# Future frontend/runtime
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+
+# Editors/OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Python/runtime
+__pycache__/
+*.pyc

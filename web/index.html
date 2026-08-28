@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JOLI POLI Claw Closing</title>
+  <link rel="icon" type="image/png" href="./assets/brand-logo.png" />
+  <link rel="stylesheet" href="./assets/styles.css?v=2.1.78" />
+</head>
+<body>
+  <div id="appShell" class="app-shell">
+    <aside id="sidebar" class="sidebar" aria-label="Main navigation">
+      <div class="sidebar-brand">
+        <div class="brand-mark brand-logo-mark" aria-hidden="true"><img class="brand-logo-image" src="./assets/brand-logo.png" alt=""><span class="brand-logo-fallback">JP</span></div>
+        <div class="brand-copy">
+          <strong>JOLI POLI</strong>
+          <span>Claw Closing</span>
+        </div>
+      </div>
+      <nav id="sidebarNav" class="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <span id="versionText" class="version-text"></span>
+        <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="Collapse sidebar"></button>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <h1 id="pageTitle">Daily Closing</h1>
+          <p id="pageSubtitle"></p>
+        </div>
+        <div class="topbar-actions"><button id="globalPrintButton" class="print-button" hidden></button><button id="globalUpdateButton" class="update-button" hidden></button><div id="pageActions" class="page-actions"></div></div>
+      </header>
+
+      <div class="content-viewport">
+        <section id="page-closing" class="page"></section>
+        <section id="page-history" class="page" hidden></section>
+        <section id="page-settings" class="page" hidden></section>
+      </div>
+    </main>
+  </div>
+
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-card">
+      <div class="loading-mark loading-logo-mark"><img class="brand-logo-image" src="./assets/brand-logo.png" alt=""><span class="brand-logo-fallback">JP</span></div>
+      <div>
+        <strong>Opening Claw Closing</strong>
+        <span>Loading the Excel database…</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalRoot"></div>
+  <div id="toastRoot" class="toast-root"></div>
+  <script src="./claw-api.js"></script>
+  <script src="./assets/app.js?v=2.1.78"></script>
+</body>
+</html>

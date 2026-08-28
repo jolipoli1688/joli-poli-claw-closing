@@ -1,0 +1,46 @@
+# Browser bridge inventory — Windows v2.1.78 baseline
+
+Status: baseline inventory complete. This inventory is derived from the imported, read-only v2.1.78 snapshot. The current UI is an HTML/CSS/JavaScript client that calls a localhost FastAPI service via its `api(path, options)` helper; it does **not** call `window.pywebview.api` directly.
+
+## Adapter boundary
+
+The browser-parity copy routes every legacy `api()` request through `window.clawApi.request(path, options)`. During this milestone `window.clawApi` is a local, non-persistent mock. It must remain the only seam between the preserved UI and a later Supabase repository/RPC implementation.
+
+No Supabase project, credential, migration, or production service is used by this stage.
+
+## UI calls and desktop implementations
+
+| Legacy request and callers | Current desktop implementation | Input and response shape | Desktop dependency | Future replacement | Status |
+| --- | --- | --- | --- | --- | --- |
+| `GET /api/bootstrap` — `initialise` | `bootstrap_v217` in `product_support.py` overrides `app.py`; gathers settings, machine setup, closing history and current app metadata. | No input. Object with `settings`, `machines`, `closings`, app/version metadata. | `ExcelDatabase`; settings, machine and closing workbook sheets; product normalization. | Auth-scoped bootstrap query or composed repositories for settings, machines/styles and permitted closing summaries. | Mocked for shell only. |
+| `GET /api/settings` — `renderSettings` | `get_application_settings` in `app.py`. | No input. `{ settings }`. | Excel Settings sheet. | Store/global settings table under RLS. | Mocked read. |
+| `POST /api/settings/unlock` — settings unlock UI | `unlock_application_settings` in `app.py`. | `{ password }`; `{ ok: true }` or validation error. | Embedded shared-password hash. | Remove this model; use Supabase Auth role/permission checks. | Deliberately unavailable in mock. |
+| `POST /api/settings` — `saveSettingsPayload`, outlet inline edit | `save_application_settings` in `app.py`. | Partial settings object; `{ ok, settings }`. | Excel Settings sheet and machine-type rule normalization. | Role-protected settings mutation/RPC with audit fields. | Mocked in memory only. |
+| `GET /api/dashboard` — `renderDashboard` | `dashboard` in `app.py`. | No input. Dashboard summary plus recent finalized closings. | `ExcelDatabase.dashboard_summary`, closing records. | Read-only reporting queries/RPC under store RLS. | Mocked empty summary. |
+| `GET /api/machines?active_only=false` — machine editor, Daily Closing structure actions | `list_machines_v217` in `product_support.py` overrides `app.py`. | `active_only` boolean. Array of machine records with machine type, products/styles, barcodes and image references. | Excel Machine sheet, product support normalization and local image names. | `machines` + `machine_styles` queries filtered by RLS. | Mocked empty array. |
+| `POST /api/machines` — machine/style editor and barcode modal | `save_machine_v217` in `product_support.py`. | Machine payload including identity, type/rules, active state, style/barcode records and data URLs for images; machine view result. | Excel Machine sheet, local product-image directory and image encode/decode helpers. | Authorized machine/style mutation; Storage upload then reference update, then old-object deletion. | Deliberately unavailable in mock. |
+| `DELETE /api/machines/{machine_id}` — Manage Machines controls | `delete_machine_v215` in `product_support.py`. | Path machine id; `{ ok, machine_id }` or validation error. | Excel machine state and closing-history safeguards. | Soft deactivate under RLS; preserve historical snapshots. | Deliberately unavailable in mock. |
+| `GET /api/machine-images/{file_name}` and product image URLs — image renderers | `machine_image` in `app.py`; product helper emits local endpoints. | Safe file name; image response. | Local machine image directories. | Supabase Storage signed/public-safe delivery, with database path only. | Placeholder only. |
+| `GET /api/new-closing?report_date=YYYY-MM-DD` — `newClosing`, report-date reload, refill repair | `new_closing_v2138` in `product_support.py` overrides earlier route. | Report date. Draft-shaped closing with settings, staff fields and machines/products populated with opening quantities/meters. | Excel settings/machines, prior finalized machine/product states and refill behavior. | Auth-scoped opening-state query/RPC; no client trust for later finalization. | Mocked empty draft. |
+| `POST /api/calculate` — legacy server recalculation path (not called by current final UI; local `calculateLocal` is used) | `calculate_v2138` in `product_support.py`. | `{ sales, machines }`; calculated closing result. | `calculations.py`, machine type rules and product bundle conversion. | Shared formula tests plus server/RPC calculation used for authoritative operations. | Not implemented in mock. |
+| `POST /api/closings/save` — draft save, finalization and refill/stock adjustment saves | `save_closing_v2138` in `product_support.py`. | `closingPayload(workflowStatus)`, including header, settings snapshot inputs, machines and products. Returns `{ ok, closing_id, workflow_status, result, report_path? }`. | Formula module, Excel Daily/Machine/Product Closing sheets, audit/refill support and desktop report export on finalization. | Draft repositories plus a transactional server-side finalize RPC that recomputes totals and freezes finalized detail. | Mocked in memory; never persists. |
+| `GET /api/closings?limit=1000` — draft-resume discovery | `list_closings` in `app.py`. | Limit. Array of closing headers. | Excel Daily Closing sheet. | RLS-filtered closing header query. | Mocked empty array. |
+| `GET /api/closings/{closing_id}` — `openClosing`, history detail, pending-final restoration | `get_closing_v217` in `product_support.py`. | Closing id. Header plus machine/product detail. | Excel closing and product sheets. | RLS-filtered closing detail query. | Mock returns not found. |
+| `GET /api/history?limit=1000` — `renderHistory` | `history_snapshot` in `product_support.py`. | Limit. `{ records, machines, staff }`, finalized records only with product/refill enrichment. | Excel Daily/Machine/Product sheets. | History query/views under RLS; finalized-only records immutable. | Mocked empty snapshot. |
+| `DELETE /api/closings/{closing_id}` — History Void Bill | `delete_finalized_closing` in `product_support.py`. | `{ reason, remove_dependent_drafts }`; void/dependency result. | Excel sheets, audit records and report files; enforces newest-first voiding. | Explicit authorized void workflow/RPC, audit records and dependency protection; no raw browser delete. | Deliberately unavailable in mock. |
+| `POST /api/history/{closing_id}/export` — History Excel export | `export_history_report` in `product_support.py`. | Closing id; report name/path result. | Excel report generation and OS file opening. | Browser download generated from authorized reporting endpoint; later milestone. | Deliberately unavailable in mock. |
+| `GET /api/reports/summary?month=YYYY-MM` — Reports view | `report_summary` in `app.py`. | Month. Summary/result object. | Excel monthly closing/machine rows. | Reporting query/RPC, store scoped. | Mocked empty summary. |
+| `POST /api/reports/monthly` — Reports export | `export_monthly` in `app.py`. | `{ month }`; report path/name. | Excel report service and OS file opening. | Authorized browser-download export. | Deliberately unavailable in mock. |
+| `POST /api/open-folder` — Reports buttons | `open_folder_endpoint` in `app.py`. | `{ target: reports|database }`; `{ ok, path }`. | Windows filesystem and `os.startfile`. | Remove from browser product; downloads and admin tooling are separate. | Deliberately unavailable in mock. |
+| Update routes: `GET /api/update/status`, `GET/POST /api/update/config`, `POST /api/update/download`, `POST /api/update/apply` — update centre | Update functions in `app.py`. | Status/config objects or empty post bodies. | Windows updater configuration, packages and processes. | Out of scope for web migration. Do not repurpose updater Supabase release data. | Mocked as disabled/no update; mutating calls unavailable. |
+
+## Routes present but not called by baseline `app.js`
+
+- `GET /api/health`: local desktop process health and v2.1.78 version check.
+- `POST /api/reports/daily/{closing_id}` and `POST /api/reports/pdf`: desktop report/PDF generation paths. The v2.1.78 UI prints the Review view through `window.print()` instead.
+- `POST /api/shutdown`, `GET /brand-logo`, and `GET /`: desktop host/process/static-asset routes. The parity shell supplies static assets and uses print CSS directly.
+
+## Formula and persistence dependencies
+
+`calculations.py` supplies validation and closing calculation. `database.py` owns atomic workbook save, locks, audit rows, machine/closing lookup and historical state. `product_support.py` augments that model with multi-product machine rows, image handling, refill events, history/void behavior and final route overrides. These modules are reference inputs for tests and future server-side replacement, not browser imports.
+
