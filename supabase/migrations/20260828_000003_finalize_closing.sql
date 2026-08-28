@@ -1,3 +1,4 @@
+-- ARCHIVED REFERENCE ONLY: permanent local-only project direction. Do not execute.
 -- Authoritative closing finalization draft.
 -- Must be validated against imported v2.1.78 calculation behavior before production use.
 

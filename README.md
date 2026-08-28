@@ -1,6 +1,6 @@
 # JOLI POLI Claw Closing Web Migration
 
-This repository is the migration workspace for converting the existing **JOLI POLI Claw Closing Windows application v2.1.78** into a cloud web application.
+This repository is the local-only migration workspace for converting the existing **JOLI POLI Claw Closing Windows application v2.1.78** into a browser UI backed by a local Python service.
 
 This is **not a redesign from zero**. The migration starts from the installed Windows application's actual HTML/CSS/JavaScript and Python business/data implementation, then replaces desktop-only and Excel-only pieces gradually.
 
@@ -37,8 +37,8 @@ Codex should run the read-only source import first. The default source folder is
 
 If the installed app is not v2.1.78, the importer stops instead of silently using the wrong baseline.
 
-## Cloud status
+## Local-only status
 
 No production Windows-app database or updater table is changed by this migration kit.
 
-The Supabase SQL files are a proposed **web-app development schema** only. Apply them only to a development Supabase project after the project choice is confirmed.
+`supabase/` is archived/reference-only material from an earlier direction. Do not execute, activate, delete, or connect it. The active application uses `local_backend/` and its isolated `local_data/` workbook.

@@ -1,5 +1,6 @@
 # Imported proprietary/local baseline is kept local by default
 legacy/windows-v2.1.78/
+local_data/
 
 # Future frontend/runtime
 node_modules/

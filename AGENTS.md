@@ -4,7 +4,16 @@
 
 Continue from the existing JOLI POLI Claw Closing Windows application v2.1.78. Do not rebuild the product from a generic template.
 
-The existing desktop app is the product baseline. Preserve its approved UI, workflow and calculations first; then replace platform-specific components with browser/Supabase equivalents.
+The existing desktop app is the product baseline. Preserve its approved UI, workflow and calculations first; then replace platform-specific components with browser/local-Python equivalents.
+
+## Permanent local-only direction
+
+This migration is permanently local-only. The browser UI talks only to the project-owned local Python backend and its isolated development workbook under `local_data/`.
+
+- Supabase, cloud hosting, cloud Auth, remote synchronization, RLS, and cloud Storage are not active requirements.
+- Existing `supabase/` SQL and documentation are archived reference material only. Do not execute, edit for activation, delete, or connect them to any project.
+- Images stay on the local filesystem in the isolated development data area.
+- Do not add remote endpoints, credentials, synchronization jobs, or cloud client libraries.
 
 ## Non-negotiable source safety
 
@@ -13,7 +22,7 @@ The existing desktop app is the product baseline. Preserve its approved UI, work
 3. Never copy, upload, inspect for migration output, or modify these source folders: `data`, `backups`, `reports`, `.venv`, `tests`, `updates`, `.webview`, `__pycache__`, `.git`.
 4. Never touch the live Excel workbook during development.
 5. Never publish a Windows-app update as part of the web migration unless the user explicitly requests a Windows-app change.
-6. Do not modify the existing Supabase software-update release table/function while building the web version.
+6. Do not modify or execute the archived `supabase/` files.
 
 ## Baseline import
 
@@ -57,21 +66,18 @@ Do not change formulas without an explicit product decision.
 
 Authoritative formulas are documented in `PROJECT_SPEC.md` and must be backed by tests before backend replacement.
 
-Finalization in the cloud version must recompute authoritative totals server-side. Do not trust client-submitted KPI totals as final business records.
+Finalization in the local backend must recompute authoritative totals server-side. Do not trust client-submitted KPI totals as final business records.
 
-## Cloud security
+## Local backend safety
 
-1. Browser code may use only Supabase publishable/anon credentials.
-2. Never expose service-role keys, database passwords, admin passwords or secrets in client code/Git.
-3. All store-owned business tables require Row Level Security.
-4. Front-end store filtering is not authorization.
-5. Use SQL migrations for schema changes.
-6. Never destructively recreate production tables to make a migration easier.
-7. Finalized closing details must not remain editable through direct browser database calls.
+1. Browser code may communicate only with the local backend through `window.clawApi`.
+2. Never expose passwords or secrets in browser code/Git.
+3. Keep all development data under `local_data/`; never point it at the production workbook.
+4. Finalized closing details must not remain editable through direct browser calls.
 
 ## Images
 
-The cloud version stores one active image per current machine/style reference. Historical closing rows do not duplicate image files.
+The local version stores one active image per current machine/style reference. Historical closing rows do not duplicate image files.
 
 Replace image safely:
 1. upload new image,
@@ -91,15 +97,13 @@ Recommended order:
 2. browser shell parity,
 3. bridge/API inventory,
 4. formula parity tests,
-5. Supabase dev database,
-6. Auth/store permissions,
-7. machine/style setup and images,
-8. Daily Closing persistence,
-9. Review/finalize,
-10. Print parity,
-11. History,
-12. Reports/Compare Stores,
-13. migration/pilot.
+5. isolated local backend/data area,
+6. machine/style setup and local images,
+7. Daily Closing persistence,
+8. Review/finalize,
+9. Print parity,
+10. History,
+11. Reports/Compare Stores.
 
 ## Completion checks
 
@@ -107,7 +111,7 @@ For each task:
 - state exact files changed,
 - run relevant syntax/type/build tests,
 - run formula tests when business logic is touched,
-- review RLS when database scope changes,
+- verify the backend remains local-only when data scope changes,
 - verify no protected Windows paths were written,
 - verify no secret was committed,
 - update migration documentation when an adapter/API is replaced.

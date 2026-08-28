@@ -1,4 +1,6 @@
-# Cloud Architecture Target
+# Archived Cloud Architecture Reference
+
+> Superseded: the active project is permanently local-only. This file is retained only as historical reference. Do not execute its SQL, provision services, connect a Supabase project, or implement cloud/Auth/synchronization behavior from it.
 
 ```text
 Browser

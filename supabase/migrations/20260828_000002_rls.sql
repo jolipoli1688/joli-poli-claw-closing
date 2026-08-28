@@ -1,3 +1,4 @@
+-- ARCHIVED REFERENCE ONLY: permanent local-only project direction. Do not execute.
 -- RLS foundation for JOLI POLI Claw Closing Web.
 -- Apply only in the chosen development project first.
 

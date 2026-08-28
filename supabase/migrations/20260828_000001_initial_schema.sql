@@ -1,3 +1,4 @@
+-- ARCHIVED REFERENCE ONLY: permanent local-only project direction. Do not execute.
 -- JOLI POLI Claw Closing Web
 -- Development schema draft. Reconcile against imported v2.1.78 database.py before production use.
 

@@ -23,7 +23,7 @@ Status: baseline inventory complete from `legacy/windows-v2.1.78/`. The first we
 | Daily Closing — Review | `renderClosingReview` reuses the closing page with `closing-review` state. It displays the KPI summary, staff/date identity, machine-product table, validation issues and Finalize/Print actions. |
 | Closing History | `renderHistory` shows finalized record KPIs, filters, detail modal, refill information and guarded Void Bill context action. |
 | Reports | Monthly summary and export/open-folder desktop actions. It remains present as a baseline surface but is not a current migration target. |
-| Settings | Local business settings, machine type/play rules and desktop password-lock behavior. In cloud this gate becomes role authorization; the baseline layout remains reference-only. |
+| Settings | Local business settings, machine type/play rules and desktop password-lock behavior. The baseline layout and local behavior remain reference-only until explicitly changed. |
 
 ## Daily Closing stage containers and controls
 
@@ -60,5 +60,4 @@ Status: baseline inventory complete from `legacy/windows-v2.1.78/`. The first we
 
 - Keep the runtime DOM generation and appended v2.1.x behavior patches intact during the parity milestone.
 - Preserve mobile breakpoints and print rules; they are part of the approved baseline.
-- Do not make the updater, Windows folder opening, Excel report generation or local image filesystem behavior browser features. Those calls stay isolated behind `window.clawApi` until their cloud replacements are approved.
-
+- Do not make the updater or Windows production folders browser features. Local workbook/report/image calls stay isolated behind `window.clawApi` and are served only by the project-owned local backend.

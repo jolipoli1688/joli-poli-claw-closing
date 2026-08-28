@@ -1,7 +1,7 @@
-# Supabase Development Project Decision
+# Archived Supabase Project Decision
 
-Do not apply migrations until the user chooses the development project.
+> Superseded by the permanent local-only direction. No Supabase development project will be selected or connected. Retain this file and `supabase/` unchanged as reference only.
 
-The current Windows updater project must remain isolated from web business data unless explicitly approved after review.
+No project-selection action remains. Do not apply migrations, choose a development project, or connect the Windows updater project to web business data.
 
-The migration can proceed locally (source import, API inventory, browser parity and tests) before a cloud project is selected.
+The active local backend is documented in `LOCAL_BACKEND.md`.

@@ -1,3 +1,4 @@
+-- ARCHIVED REFERENCE ONLY: permanent local-only project direction. Do not execute.
 -- Active machine/style image storage draft.
 -- Path convention: <store_uuid>/<machine_style_uuid>/<generated_filename>.webp
 

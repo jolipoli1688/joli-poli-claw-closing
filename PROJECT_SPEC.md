@@ -1,22 +1,17 @@
 # JOLI POLI Claw Closing Web — Migration Product Specification
 
-Status: migration foundation
+Status: local-only migration foundation
 Desktop product baseline: v2.1.78
+
+> Direction decision: this project is permanently local-only. Any older wording below that mentions cloud, Supabase, Auth, Row Level Security, cloud storage, cloud users, or synchronization is archived historical context and is not an active requirement. The active target is the browser UI served by a local Python backend with isolated project-owned data.
 
 ## 1. Product direction
 
-Build a cloud web version by continuing from the current Windows app, not by redesigning the application from zero.
+Build a local browser version by continuing from the current Windows app, not by redesigning the application from zero.
 
 The Windows application stays operational as production/fallback until the web version passes validation and pilot rollout.
 
-Expected launch scale:
-- about 10 stores,
-- about 15 physical machines per store,
-- about 2 product/styles per machine,
-- about 30 active images per store / about 300 active images total,
-- one Daily Closing per store per day.
-
-Cloud target: Supabase Free initially. Monitor database/storage/egress before any paid-plan decision.
+Development target: one isolated project-owned workbook and local image directory. The production Windows workbook remains untouched.
 
 ## 2. Existing modules to preserve
 
@@ -122,7 +117,7 @@ Meter modes:
 
 Refill supports both positive and negative quantity adjustments.
 
-Cloud data should store refill events for auditability. A voided refill is retained but excluded from the effective refill total.
+The local backend stores refill events for auditability. A voided refill is retained but excluded from the effective refill total.
 
 Begin Qty for the next closing comes from the prior finalized quantity according to the approved closing workflow; later stock changes use refill rather than silently rewriting Begin Qty.
 
@@ -154,15 +149,9 @@ Recommended web upload handling:
 - target roughly 300–700 KB where practical,
 - WebP preferred for generated web images.
 
-## 9. Cloud users / permissions
+## 9. Local access
 
-Initial roles:
-- Staff: assigned store(s), Daily Closing
-- Store Manager: assigned store(s), Daily Closing, History, Reports, machine setup
-- Head Office: all stores, reporting/comparison visibility
-- Admin: all stores, user/store administration, settings and machine setup
-
-Database Row Level Security must enforce store access.
+The local browser/backend inherits the approved desktop workflow. Cloud users, remote authentication, store synchronization, and Row Level Security are out of scope.
 
 ## 10. Historical records
 
@@ -191,13 +180,9 @@ Target:
 
 The v2.1.78 print typography/design-system adjustments are print-only unless separately approved for screen UI.
 
-## 12. Cloud storage model
+## 12. Local storage model
 
-Do not store image binaries or generated PDFs inside PostgreSQL rows.
-
-Use Supabase Storage for active machine/style images. Database stores the path/reference only.
-
-Daily Closing/report records should be relational rows, not a large duplicated JSON/PDF payload.
+Do not store image binaries or generated PDFs inside workbook rows. Keep active machine/style images in the project-owned local data area; workbook rows store the file reference only. Closing/report records remain structured workbook rows rather than duplicated JSON/PDF payloads.
 
 ## 13. Migration strategy
 
@@ -207,11 +192,10 @@ Phase A — Baseline parity
 - run current UI in a browser with adapters/stubs,
 - preserve screen parity.
 
-Phase B — Cloud foundation
-- Supabase development schema,
-- Auth,
-- store permissions/RLS,
-- settings/machines/styles/images.
+Phase B — Local backend foundation
+- isolated development workbook,
+- local settings/machines/styles/images,
+- local FastAPI endpoints behind `window.clawApi`.
 
 Phase C — Daily Closing
 - load opening data,
@@ -226,9 +210,7 @@ Phase D — Print / History / Reports
 - historical views,
 - comparison/reporting.
 
-Phase E — Migration / rollout
-- migration rehearsal from an Excel backup/copy,
-- record/count/total reconciliation,
-- one-store pilot,
-- multi-store rollout,
-- Windows app remains fallback until explicit retirement approval.
+Phase E — Local validation
+- record/count/total reconciliation against imported logic,
+- local regression validation,
+- Windows app remains unchanged unless an explicit retirement decision is made.

@@ -1,12 +1,14 @@
 # Browser bridge inventory — Windows v2.1.78 baseline
 
-Status: baseline inventory complete. This inventory is derived from the imported, read-only v2.1.78 snapshot. The current UI is an HTML/CSS/JavaScript client that calls a localhost FastAPI service via its `api(path, options)` helper; it does **not** call `window.pywebview.api` directly.
+Status: local-backend migration in progress. This inventory is derived from the imported, read-only v2.1.78 snapshot. The current UI is an HTML/CSS/JavaScript client that calls a localhost FastAPI service via its `api(path, options)` helper; it does **not** call `window.pywebview.api` directly.
 
 ## Adapter boundary
 
-The browser-parity copy routes every legacy `api()` request through `window.clawApi.request(path, options)`. During this milestone `window.clawApi` is a local, non-persistent mock. It must remain the only seam between the preserved UI and a later Supabase repository/RPC implementation.
+The browser copy routes every legacy `api()` request through `window.clawApi.request(path, options)`. It remains the only seam between the preserved UI and the local FastAPI backend.
 
-No Supabase project, credential, migration, or production service is used by this stage.
+No Supabase project, credential, migration, cloud service, Auth service, or synchronization service is used by this project.
+
+All references to a future Supabase replacement in the historical table below are superseded. The active replacement is the local Python backend with its isolated `local_data/` workbook and local image directory. Current endpoint status is recorded in `LOCAL_BACKEND.md`; historical status cells below are not an implementation plan.
 
 ## UI calls and desktop implementations
 
@@ -43,4 +45,3 @@ No Supabase project, credential, migration, or production service is used by thi
 ## Formula and persistence dependencies
 
 `calculations.py` supplies validation and closing calculation. `database.py` owns atomic workbook save, locks, audit rows, machine/closing lookup and historical state. `product_support.py` augments that model with multi-product machine rows, image handling, refill events, history/void behavior and final route overrides. These modules are reference inputs for tests and future server-side replacement, not browser imports.
-
