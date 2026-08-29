@@ -1,9 +1,9 @@
-# Archived Supabase reference
+# Supabase local draft boundary
 
-This directory is archived/reference-only under the permanent local-only project direction.
+Cloud Phase 2 permits local editing and static validation of these schema, RLS,
+Storage, and Edge-function drafts. It does not authorize connecting to,
+provisioning, migrating, deleting, or modifying any Supabase project.
 
-- Do not execute these SQL files.
-- Do not connect, provision, migrate, delete, or modify a Supabase project from this repository.
-- Do not delete these files without an explicit archival-removal decision.
-
-The active application is `local_backend/` plus `local_data/` and local images.
+- The two existing projects are explicitly not targets.
+- A new dedicated staging project requires separate approval before any SQL runs.
+- The active local backend and `local_data/` remain the UAT/fallback/regression baseline.
