@@ -26,3 +26,15 @@ Run `scripts\Start_Web_Parity.bat` to start the FastAPI server and open `http://
 - Static UI: `/`, `/claw-api.js`, `/assets/*`.
 
 The desktop software-update endpoints return disabled responses. Supabase files are archived and never contacted.
+# UAT and regression data isolation
+
+`scripts/Start_Web_Parity.bat` always starts the normal local UAT server on
+`127.0.0.1:4173` with `local_data/uat/`. It refuses to start if that copied
+workbook is absent; it never falls back to fixture or mock data.
+
+Regression creates a factory-default fixture for every run beneath
+`local_data/regression-runs/<uuid>/` and starts it on a dynamic loopback port.
+It requires `/api/runtime` to report that exact `mode: test` directory, then
+always stops its server process tree, verifies the port is released, and removes
+the fixture (including its workbook lock), even after a failed assertion. Never
+point the regression fixture at the UAT server or `local_data/uat/`.

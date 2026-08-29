@@ -19,6 +19,122 @@
   color-scheme: light;
 }
 
+/* Print UAT correction — print the live Review at its approved component scale. */
+@page { size: A4 landscape; margin: 8mm; }
+
+@media print {
+  /* The live Review is the print source; obsolete clone hosts must never participate. */
+  #exactPrintRootV2164 { display: none !important; }
+
+  html,
+  body,
+  .app-shell,
+  .workspace,
+  .content-viewport,
+  .page,
+  #page-closing {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  .workspace,
+  .content-viewport,
+  #page-closing {
+    padding: 0 !important;
+  }
+
+  .topbar {
+    position: static !important;
+    padding: 0 0 16px !important;
+  }
+  .topbar h1 { font-size: 24px !important; line-height: 32px !important; }
+
+  .sidebar,
+  .topbar-actions,
+  .page-actions,
+  .sidebar-toggle,
+  .closing-workflow-stepper,
+  #reviewTopActions,
+  .review-top-actions,
+  .closing-actions,
+  .machine-heading-buttons,
+  .bulk-edit-bar,
+  .structure-edit-banner,
+  .toast-root,
+  #toastRoot,
+  #modalRoot {
+    display: none !important;
+  }
+
+  /* Keep actual Review information visible; only its interaction controls are removed. */
+  #page-closing .review-check-card { display: flex !important; }
+  #page-closing .review-refill-card { display: block !important; }
+  #page-closing .review-heading-card {
+    padding: 15px 17px !important;
+    margin-bottom: 10px !important;
+  }
+  #page-closing .review-heading-card h2 { font-size: 24px !important; line-height: 32px !important; }
+  #page-closing .review-staff-grid > div { padding: 8px 10px !important; }
+  #page-closing .review-staff-grid span { font-size: 13px !important; line-height: 18px !important; }
+  #page-closing .review-staff-grid strong { font-size: 14px !important; line-height: 20px !important; }
+
+  /* Preserve the approved 4-by-2 Review KPI component dimensions without shrinking them. */
+  #page-closing .closing-summary-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+  #page-closing .closing-summary-item {
+    min-height: 88px !important;
+    padding: 12px 13px 11px 14px !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 12px !important;
+    box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 4px 12px rgba(15,23,42,.05) !important;
+  }
+  #page-closing .closing-summary-head > span:first-child,
+  #page-closing .closing-summary-item > span { font-size: 13px !important; line-height: 18px !important; }
+  #page-closing .closing-summary-item > strong { font-size: 28px !important; line-height: 34px !important; }
+  #page-closing .closing-summary-icon { width: 36px !important; height: 36px !important; flex-basis: 36px !important; }
+  #page-closing .closing-summary-icon svg { width: 18px !important; height: 18px !important; }
+
+  #page-closing .section-heading h2 { font-size: 18px !important; line-height: 26px !important; }
+  #page-closing .machine-section,
+  #page-closing .review-machine-section,
+  #page-closing .data-table-wrap,
+  #page-closing .product-closing-table,
+  #page-closing .product-closing-table tbody {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  #page-closing .data-table-wrap { width: 100% !important; }
+  #page-closing .product-closing-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed !important;
+    font-size: 14px !important;
+  }
+  #page-closing .product-closing-table thead { display: table-header-group !important; }
+  #page-closing .product-closing-table thead tr,
+  #page-closing .product-closing-table tbody tr { break-inside: avoid !important; page-break-inside: avoid !important; }
+  #page-closing .product-closing-table th { font-size: 13px !important; line-height: 18px !important; }
+  #page-closing .product-closing-table td { font-size: 14px !important; line-height: 20px !important; }
+  #page-closing .product-thumb,
+  #page-closing .product-thumb-placeholder {
+    width: 64px !important;
+    height: 64px !important;
+    min-width: 64px !important;
+    min-height: 64px !important;
+    flex-basis: 64px !important;
+    object-fit: contain !important;
+  }
+}
+
 * { box-sizing: border-box; }
 html, body { min-height: 100%; }
 body {
@@ -3364,5 +3480,61 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   #page-closing {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+}
+
+/* Print UAT correction — final cascade: live Review only, without scale-to-fit. */
+@page { size: A4 landscape; margin: 8mm; }
+@media print {
+  #exactPrintRootV2164 { display:none !important; }
+  html, body, .app-shell, .workspace, .content-viewport, .page, #page-closing {
+    width:100% !important; max-width:none !important; min-width:0 !important;
+    margin:0 !important; overflow:visible !important;
+  }
+  .workspace, .content-viewport, #page-closing { padding:0 !important; }
+  .topbar { position:static !important; padding:0 0 16px !important; }
+  .topbar h1 { font-size:24px !important; line-height:32px !important; }
+  .sidebar, .topbar-actions, .page-actions, .sidebar-toggle, .closing-workflow-stepper,
+  #reviewTopActions, .review-top-actions, .closing-actions, .machine-heading-buttons,
+  .bulk-edit-bar, .structure-edit-banner, .toast-root, #toastRoot, #modalRoot { display:none !important; }
+
+  /* Review content stays present at screen component scale. */
+  #page-closing .review-check-card { display:flex !important; }
+  #page-closing .review-refill-card { display:block !important; }
+  #page-closing .review-heading-card { padding:15px 17px !important; margin-bottom:10px !important; }
+  #page-closing .review-heading-card h2 { font-size:24px !important; line-height:32px !important; }
+  #page-closing .review-staff-grid > div { padding:8px 10px !important; }
+  #page-closing .review-staff-grid span { font-size:13px !important; line-height:18px !important; }
+  #page-closing .review-staff-grid strong { font-size:14px !important; line-height:20px !important; }
+
+  #page-closing .closing-summary-strip {
+    grid-template-columns:repeat(4,minmax(0,1fr)) !important; gap:10px !important;
+    padding:0 !important; overflow:visible !important; background:transparent !important;
+  }
+  #page-closing .closing-summary-item {
+    min-height:88px !important; padding:12px 13px 11px 14px !important;
+    border:1px solid #e5e7eb !important; border-radius:12px !important;
+    box-shadow:0 1px 2px rgba(15,23,42,.04),0 4px 12px rgba(15,23,42,.05) !important;
+  }
+  #page-closing .closing-summary-head > span:first-child,
+  #page-closing .closing-summary-item > span { font-size:13px !important; line-height:18px !important; }
+  #page-closing .closing-summary-item > strong { font-size:28px !important; line-height:34px !important; }
+  #page-closing .closing-summary-icon { width:36px !important; height:36px !important; flex-basis:36px !important; }
+  #page-closing .closing-summary-icon svg { width:18px !important; height:18px !important; }
+
+  #page-closing .section-heading h2 { font-size:18px !important; line-height:26px !important; }
+  #page-closing .machine-section, #page-closing .review-machine-section,
+  #page-closing .data-table-wrap, #page-closing .product-closing-table,
+  #page-closing .product-closing-table tbody { height:auto !important; max-height:none !important; overflow:visible !important; }
+  #page-closing .data-table-wrap { width:100% !important; }
+  #page-closing .product-closing-table { width:100% !important; min-width:0 !important; table-layout:fixed !important; font-size:14px !important; }
+  #page-closing .product-closing-table thead { display:table-header-group !important; }
+  #page-closing .product-closing-table thead tr,
+  #page-closing .product-closing-table tbody tr { break-inside:avoid !important; page-break-inside:avoid !important; }
+  #page-closing .product-closing-table th { font-size:13px !important; line-height:18px !important; }
+  #page-closing .product-closing-table td { font-size:14px !important; line-height:20px !important; }
+  #page-closing .product-thumb, #page-closing .product-thumb-placeholder {
+    width:64px !important; height:64px !important; min-width:64px !important; min-height:64px !important;
+    flex-basis:64px !important; object-fit:contain !important;
   }
 }

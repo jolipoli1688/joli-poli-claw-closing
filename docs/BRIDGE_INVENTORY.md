@@ -39,7 +39,7 @@ All references to a future Supabase replacement in the historical table below ar
 ## Routes present but not called by baseline `app.js`
 
 - `GET /api/health`: local desktop process health and v2.1.78 version check.
-- `POST /api/reports/daily/{closing_id}` and `POST /api/reports/pdf`: desktop report/PDF generation paths. The v2.1.78 UI prints the Review view through `window.print()` instead.
+- `POST /api/reports/daily/{closing_id}` and `POST /api/reports/pdf`: desktop report/PDF generation paths. The browser prints the live Review DOM through `window.print()` with A4-landscape cleanup CSS; it does not clone, scale, or route through a separate report view.
 - `POST /api/shutdown`, `GET /brand-logo`, and `GET /`: desktop host/process/static-asset routes. The parity shell supplies static assets and uses print CSS directly.
 
 ## Formula and persistence dependencies

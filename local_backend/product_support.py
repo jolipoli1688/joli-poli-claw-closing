@@ -221,7 +221,11 @@ def _upgrade_workbook(path: Path) -> None:
             settings.cell(version_row, settings_headers["Key"]).value = "Database_Version"
             settings.cell(version_row, settings_headers["Description"]).value = "Excel database schema version"
             changed = True
-        if str(settings.cell(version_row, settings_headers["Value"]).value or "") != "1.2":
+        current_version = str(settings.cell(version_row, settings_headers["Value"]).value or "").strip()
+        # Do not downgrade a newer schema version.  v2.1.78's refill
+        # migration owns 1.3; lowering it here merely serializes the workbook
+        # twice during startup without changing business data.
+        if not current_version or current_version < "1.2":
             settings.cell(version_row, settings_headers["Value"]).value = "1.2"
             changed = True
 

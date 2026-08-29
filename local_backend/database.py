@@ -343,7 +343,11 @@ class ExcelDatabase:
                         "Excel database schema version"
                     )
                     changed = True
-                if str(settings.cell(database_version_row, headers["Value"]).value or "") != "1.2":
+                current_version = str(settings.cell(database_version_row, headers["Value"]).value or "").strip()
+                # A later v2.1.78 extension owns newer schema versions.  The
+                # base migration may initialise an empty/older workbook but
+                # must never downgrade it, which would force a needless save.
+                if not current_version or current_version < "1.2":
                     settings.cell(database_version_row, headers["Value"]).value = "1.2"
                     changed = True
 
@@ -792,4 +796,3 @@ class ExcelDatabase:
             for row in self._cache_machine_closings
             if row.get("Closing_ID") in valid_ids
         ]
-

@@ -1,6 +1,7 @@
 "use strict";
 
-const base = process.env.LOCAL_APP_URL || "http://127.0.0.1:4173";
+const base = process.env.LOCAL_APP_URL || "http://127.0.0.1:4174";
+const expectedDataDirectory = String(process.env.CLAW_EXPECTED_DATA_DIRECTORY || "local_data/test").replace(/\\/g, "/");
 const runId = `PARITY-${Date.now()}`;
 const reportDate = "2030-01-10";
 const nextDate = "2030-01-11";
@@ -24,6 +25,22 @@ const expectError = async (path, options, contains) => {
   const body = await response.json().catch(() => ({}));
   assert(response.status >= 400, `${path} should fail`);
   assert(String(body.detail || "").includes(contains), `${path} error should include ${contains}; received ${body.detail}`);
+};
+const waitForIsolatedTestRuntime = async () => {
+  const deadline = Date.now() + 30_000;
+  let lastError = "";
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`${base}/api/runtime`);
+      const body = await response.json().catch(() => ({}));
+      if (response.ok) return body;
+      lastError = `HTTP ${response.status}`;
+    } catch (error) {
+      lastError = error.message;
+    }
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  throw new Error(`isolated regression backend did not become ready: ${lastError}`);
 };
 
 const baseMachine = (machineId, type, products, meter = {}) => ({
@@ -52,6 +69,12 @@ const sales = {
   price_per_coin_usd: 0.3125,
 };
 
+const runtime = await waitForIsolatedTestRuntime();
+assert(runtime.mode === "test", `regression requires isolated test mode; received ${runtime.mode}`);
+assert(
+  String(runtime.data_directory || "").replace(/\\/g, "/") === expectedDataDirectory,
+  `regression requires ${expectedDataDirectory}; received ${runtime.data_directory}`,
+);
 const initialSettings = await request("/api/settings");
 await expectError("/api/settings", { method: "POST", body: JSON.stringify({ exchange_rate_usd_khr: 4100, price_per_coin_usd: 0.3125 }) }, "Settings password is required");
 await expectError("/api/settings/unlock", { method: "POST", body: JSON.stringify({ password: "wrong-password" }) }, "Incorrect Settings password");

@@ -15,8 +15,8 @@
     mode: "local-backend",
     async request(path, options = {}) {
       const response = await fetch(path, {
-        headers: { "Content-Type": "application/json", ...(options.headers || {}) },
         ...options,
+        headers: { "Content-Type": "application/json", ...(options.headers || {}) },
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.detail || `Request failed (${response.status})`);

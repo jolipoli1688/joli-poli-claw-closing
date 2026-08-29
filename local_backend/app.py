@@ -32,7 +32,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from calculations import MachineInput, SalesInput, calculate_closing, to_decimal, to_int
-from config import APP_NAME, APP_VERSION, BACKUP_DIR, DATABASE_PATH, DEFAULT_OUTLET, REPORTS_DIR, ROOT_DIR, WEB_DIR
+from config import APP_NAME, APP_VERSION, BACKUP_DIR, DATA_DIR, DATA_MODE, DATABASE_PATH, DEFAULT_OUTLET, REPORTS_DIR, ROOT_DIR, WEB_DIR
 from database import DatabaseLockedError, ExcelDatabase
 from report_service import export_daily_closing, export_monthly_summary
 
@@ -977,7 +977,18 @@ async def value_error_handler(_request, exc: ValueError):
 
 @api.get("/api/health")
 def health() -> dict[str, Any]:
-    return {"ok": True, "version": APP_VERSION}
+    return {"ok": True, "version": APP_VERSION, "data_mode": DATA_MODE}
+
+
+@api.get("/api/runtime")
+def runtime_info() -> dict[str, Any]:
+    """Expose a safe relative data identity for local UAT/test verification."""
+    return {
+        "mode": DATA_MODE,
+        "data_directory": str(DATA_DIR.relative_to(ROOT_DIR)).replace("\\", "/"),
+        "workbook": str(DATABASE_PATH.relative_to(ROOT_DIR)).replace("\\", "/"),
+        "image_directory": str(MACHINE_IMAGE_DIR.relative_to(ROOT_DIR)).replace("\\", "/"),
+    }
 
 
 @api.get("/api/bootstrap")
@@ -1109,7 +1120,7 @@ def machine_image(file_name: str) -> FileResponse:
         raise HTTPException(status_code=404, detail="Machine image was not found.")
     return FileResponse(
         path,
-        headers={"Cache-Control": "private, max-age=86400"},
+        headers={"Cache-Control": "no-store"},
     )
 
 
@@ -1459,12 +1470,16 @@ def brand_logo() -> FileResponse:
 
 @api.get("/")
 def index() -> FileResponse:
-    return FileResponse(WEB_DIR / "index.html")
+    return FileResponse(WEB_DIR / "index.html", headers={"Cache-Control": "no-store"})
 
 
 @api.get("/claw-api.js")
 def claw_api_script() -> FileResponse:
-    return FileResponse(WEB_DIR / "claw-api.js", media_type="application/javascript")
+    return FileResponse(
+        WEB_DIR / "claw-api.js",
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 api.mount("/assets", StaticFiles(directory=WEB_DIR / "assets"), name="assets")

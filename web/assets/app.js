@@ -4453,14 +4453,11 @@ printClosingPdf=async function(){
   if(!state.closing||!state.closingReview||!button)return;
   try{
     button.disabled=true;
-    const root=buildOutsideScreenPrintV2172();
-    if(!root)throw new Error('Review page is not available.');
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
     window.print();
   }catch(error){
     toast('Cannot open print dialog',error.message||'Printing is not available on this computer.','error');
   }finally{
-    setTimeout(destroyExactPrintV2164,300);
     button.disabled=false;
   }
 };
