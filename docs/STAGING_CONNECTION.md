@@ -27,6 +27,13 @@ shows a subtle **STAGING** indicator, and never writes values to disk. LOCAL
 mode remains `scripts\Start_Web_Parity.bat`. Do not enable cloud mode with raw
 table access or a service-role key in the browser.
 
+For manual Chrome/Edge UAT, double-click `Start_Cloud_Staging.bat`. Copy the
+tracked `.env.cloud-staging.example` to the ignored
+`.env.cloud-staging.local`, set only its browser-safe publishable key, and use
+the opened `http://127.0.0.1:4175/` page. The batch launcher fixes the approved
+staging URL/ref and rejects a browser config containing a service-role key.
+See `docs/MANUAL_CLOUD_BROWSER_UAT.md` for the required sign-off checks.
+
 > **HISTORICAL / SUPERSEDED:** The following former four-email-account setup is
 > retained only as phase history. Do not create or use these accounts.
 

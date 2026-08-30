@@ -7,6 +7,8 @@ const edge = await readFile(new URL("../supabase/functions/claw-api/index.ts", i
 const runtime = await readFile(new URL("../web/cloud-runtime.js", import.meta.url), "utf8");
 const users = await readFile(new URL("../web/cloud-user-management.js", import.meta.url), "utf8");
 const launcher = await readFile(new URL("./Start_Cloud_Staging.py", import.meta.url), "utf8");
+const manualLauncher = await readFile(new URL("../Start_Cloud_Staging.bat", import.meta.url), "utf8");
+const manualChecklist = await readFile(new URL("../docs/MANUAL_CLOUD_BROWSER_UAT.md", import.meta.url), "utf8");
 
 for (const route of ["/api/bootstrap", "/api/settings", "/api/machines", "/api/new-closing", "/api/calculate", "/api/closings/save", "/api/refills/", "/api/history", "/api/images/replace", "/api/images/remove"]) {
   assert.ok(edge.includes(route), `cloud Edge façade must cover ${route}`);
@@ -27,4 +29,9 @@ assert.match(edge, /apply_developer_user_profile/, "Developer-managed users must
 assert.match(edge, /auth\.admin\.deleteUser/, "failed user setup must compensate by removing the new Auth identity");
 assert.match(launcher, /CLAW_SUPABASE_PUBLISHABLE_KEY/, "launcher must inject only runtime configuration");
 assert.ok(!runtime.includes("SERVICE_ROLE"), "browser runtime must not contain a service-role key");
+assert.match(manualLauncher, /\.env\.cloud-staging\.local/, "manual launcher must use its separate browser-safe config");
+assert.match(manualLauncher, /fbvzqdqjqcbjopuinknw/, "manual launcher must pin the approved staging ref");
+assert.ok(!/set "CONFIG=.*\.env\.staging\.local/i.test(manualLauncher), "manual launcher must not read the server-side staging environment");
+assert.match(manualLauncher, /SUPABASE_SERVICE_ROLE_KEY/, "manual launcher must reject a service-role key in browser config");
+for (const item of ["Developer: PASS / FAIL", "Admin: PASS / FAIL", "Outlet A: PASS / FAIL", "Outlet B: PASS / FAIL", "Daily Closing: PASS / FAIL", "Clipboard Paste: PASS / FAIL", "Review: PASS / FAIL", "Print: PASS / FAIL"]) assert.ok(manualChecklist.includes(item), `manual checklist must include ${item}`);
 console.log("PASS - cloud Phase 4 façade/runtime contract");
