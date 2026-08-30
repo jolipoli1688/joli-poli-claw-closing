@@ -6,9 +6,9 @@ Status: local-backend migration in progress. This inventory is derived from the 
 
 The browser copy routes every legacy `api()` request through `window.clawApi.request(path, options)`. It remains the only seam between the preserved UI and the local FastAPI backend.
 
-No Supabase project, credential, migration, cloud service, Auth service, or synchronization service is used by this project.
+At the time this inventory was first written, no cloud service was used. **HISTORICAL / SUPERSEDED:** cloud staging is now authorized only for project `fbvzqdqjqcbjopuinknw`. The accepted UI remains behind `window.clawApi`; LOCAL remains supported and cloud work must not introduce workbook synchronization.
 
-All references to a future Supabase replacement in the historical table below are superseded. The active replacement is the local Python backend with its isolated `local_data/` workbook and local image directory. Current endpoint status is recorded in `LOCAL_BACKEND.md`; historical status cells below are not an implementation plan.
+The inventory below remains useful for preserving endpoint contracts. Current LOCAL status is recorded in `LOCAL_BACKEND.md`; current cloud authorization is recorded in `AGENTS.md` and `SUPABASE_PROJECT_DECISION.md`.
 
 ## UI calls and desktop implementations
 

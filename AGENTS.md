@@ -6,23 +6,34 @@ Continue from the existing JOLI POLI Claw Closing Windows application v2.1.78. D
 
 The existing desktop app is the product baseline. Preserve its approved UI, workflow and calculations first; then replace platform-specific components with browser/local-Python equivalents.
 
-## Permanent local-only direction
+## Authoritative architecture: shared UI, local and cloud adapters
 
-This migration is permanently local-only. The browser UI talks only to the project-owned local Python backend and its isolated development workbook under `local_data/`.
+The accepted local application remains preserved and supported for regression, fallback, development, and reference. The final target is one central cloud application and database for all stores; stores connect directly to it. This is not a local-database synchronization, replication, merge, or conflict-resolution architecture.
 
-- Supabase, cloud hosting, cloud Auth, remote synchronization, RLS, and cloud Storage are not active requirements.
-- Existing `supabase/` SQL and documentation are archived reference material only. Do not execute, edit for activation, delete, or connect them to any project.
-- Images stay on the local filesystem in the isolated development data area.
-- Do not add remote endpoints, credentials, synchronization jobs, or cloud client libraries.
+The accepted browser UI communicates only through `window.clawApi`:
+
+```text
+Accepted browser UI -> window.clawApi -> local adapter -> isolated project-owned local_data/
+                                      -> cloud adapter -> approved Supabase project
+```
+
+Cloud staging work is explicitly authorized only for **JOLI POLI Claw Staging** (`fbvzqdqjqcbjopuinknw`, `ap-southeast-1`). Supabase schema, Auth, Storage, RPCs, Edge Functions, and the cloud adapter may be implemented and tested there with synthetic staging data. Do not change any other Supabase project unless separately authorized.
+
+- LOCAL mode must remain functional while CLOUD staging is developed.
+- Do not duplicate or redesign the accepted browser UI, Review, or Print View during backend migration.
+- Browser configuration may expose only browser-safe Supabase configuration. Service-role keys, passwords, access tokens, and all other secrets must never be committed or exposed in browser code.
+- Real production-data migration is not authorized. Synthetic staging data and ignored project-owned local copied/test data are allowed.
+- Local images remain under the isolated project-owned data area in LOCAL mode. Cloud Storage is permitted only for approved synthetic staging work until real-image migration is separately authorized.
+- CLOUD staging must retain authenticated role/store authorization, RLS, private Storage policies, least-privilege grants, and server-authoritative finalization. Do not weaken these controls to simplify testing.
 
 ## Non-negotiable source safety
 
-1. The Windows source folder is read-only for this migration.
+1. The Windows source folder `D:\Python File\Claw_Closing_App` is read-only for this migration, including while cloud staging is developed.
 2. Never edit, rename, delete or move anything under `D:\Python File\Claw_Closing_App`.
 3. Never copy, upload, inspect for migration output, or modify these source folders: `data`, `backups`, `reports`, `.venv`, `tests`, `updates`, `.webview`, `__pycache__`, `.git`.
 4. Never touch the live Excel workbook during development.
 5. Never publish a Windows-app update as part of the web migration unless the user explicitly requests a Windows-app change.
-6. Do not modify or execute the archived `supabase/` files.
+6. Do not modify, access, or execute anything in the protected Windows source folder for cloud work. The `supabase/` files are active staging implementation material only for the approved project and must be handled under the cloud authorization and secret rules above.
 
 ## Baseline import
 
@@ -70,7 +81,7 @@ Finalization in the local backend must recompute authoritative totals server-sid
 
 ## Local backend safety
 
-1. Browser code may communicate only with the local backend through `window.clawApi`.
+1. Browser code communicates through `window.clawApi`: LOCAL mode uses the local backend; CLOUD mode uses only the approved authenticated staging cloud adapter.
 2. Never expose passwords or secrets in browser code/Git.
 3. Keep all development data under `local_data/`; never point it at the production workbook.
 4. Finalized closing details must not remain editable through direct browser calls.
@@ -111,7 +122,7 @@ For each task:
 - state exact files changed,
 - run relevant syntax/type/build tests,
 - run formula tests when business logic is touched,
-- verify the backend remains local-only when data scope changes,
+- verify LOCAL isolation remains intact and CLOUD work is limited to the approved staging project when data scope changes,
 - verify no protected Windows paths were written,
 - verify no secret was committed,
 - update migration documentation when an adapter/API is replaced.

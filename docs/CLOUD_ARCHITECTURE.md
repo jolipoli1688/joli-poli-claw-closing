@@ -1,6 +1,6 @@
-# Archived Cloud Architecture Reference
+# Cloud Architecture
 
-> Superseded: the active project is permanently local-only. This file is retained only as historical reference. Do not execute its SQL, provision services, connect a Supabase project, or implement cloud/Auth/synchronization behavior from it.
+> Updated direction: this architecture is active for staging only on **JOLI POLI Claw Staging** (`fbvzqdqjqcbjopuinknw`, `ap-southeast-1`). It supersedes the prior local-only direction while retaining LOCAL mode as the accepted parity baseline, fallback, and regression environment. Do not connect to another Supabase project or migrate real production data or images without separate authorization.
 
 ```text
 Browser

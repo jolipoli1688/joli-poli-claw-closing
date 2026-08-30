@@ -1,13 +1,13 @@
 # JOLI POLI Claw Closing Web — Migration Product Specification
 
-Status: local-only migration foundation
+Status: shared browser UI with preserved LOCAL mode and authorized CLOUD staging
 Desktop product baseline: v2.1.78
 
-> Direction decision: this project is permanently local-only. Any older wording below that mentions cloud, Supabase, Auth, Row Level Security, cloud storage, cloud users, or synchronization is archived historical context and is not an active requirement. The active target is the browser UI served by a local Python backend with isolated project-owned data.
+> Direction decision: the final target is one central cloud application and database for all stores. The accepted local browser/backend remains the parity baseline, regression environment, fallback, and development reference. Stores connect directly to the central cloud application; no workbook/database synchronization architecture is in scope. Current cloud work is STAGING ONLY against approved project `fbvzqdqjqcbjopuinknw` in `ap-southeast-1`. No production workbook, operational data, machine images, or employee accounts may be migrated without separate authorization.
 
 ## 1. Product direction
 
-Build a local browser version by continuing from the current Windows app, not by redesigning the application from zero.
+Build a shared browser version by continuing from the current Windows app, not by redesigning the application from zero. The same UI uses `window.clawApi` to select either the preserved local backend or the authenticated cloud adapter.
 
 The Windows application stays operational as production/fallback until the web version passes validation and pilot rollout.
 
@@ -149,9 +149,9 @@ Recommended web upload handling:
 - target roughly 300–700 KB where practical,
 - WebP preferred for generated web images.
 
-## 9. Local access
+## 9. Access modes and cloud authorization
 
-The local browser/backend inherits the approved desktop workflow. Cloud users, remote authentication, store synchronization, and Row Level Security are out of scope.
+LOCAL mode preserves the approved local browser/backend workflow and isolated project-owned data. CLOUD staging uses authenticated users, role/store authorization, Supabase RLS, and private Storage in the approved project only. Cloud authorization is server- and database-enforced; a client-provided store ID or user-editable metadata is never authoritative.
 
 ## 10. Historical records
 
@@ -214,3 +214,9 @@ Phase E — Local validation
 - record/count/total reconciliation against imported logic,
 - local regression validation,
 - Windows app remains unchanged unless an explicit retirement decision is made.
+
+Phase F — Controlled cloud staging
+- retain the accepted UI and LOCAL adapter,
+- implement an authenticated CLOUD adapter through `window.clawApi`,
+- validate staging RLS/Auth/Storage/RPC/Edge Function behavior with synthetic data,
+- require cloud/local parity acceptance before any separately approved real-data rehearsal.

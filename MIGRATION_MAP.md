@@ -8,12 +8,12 @@ This document defines what should be reused versus replaced. Codex must refine i
 | `assets/web/styles.css` | Reuse first | Browser styles; remove WebView-only assumptions only when necessary |
 | `assets/web/app.js` | Reuse/refactor | Preserve UI/event/business behavior; replace Python bridge calls through adapter |
 | `app.py` | Reference only | Inventory desktop host/API endpoints; browser no longer runs PyWebView host |
-| `database.py` | Reuse/refactor | Local project-owned Excel repository under `local_data/` |
+| `database.py` | Reuse/refactor | LOCAL: project-owned Excel repository under `local_data/`; CLOUD: central PostgreSQL implementation behind the same adapter contract |
 | `calculations.py` if present | Reuse logic via tests | Shared/tested calculation behavior; authoritative finalization server-side |
 | `product_support.py` | Reuse/refactor | Local image handling and product/refill behavior |
 | `pdf_report.py` | Reference only unless still used | Web Print uses Review/print CSS; no need to keep rejected separate-PDF flow |
-| local Excel workbook | Production source only | Never touched; local backend creates an isolated `local_data` workbook |
-| `data/machine_images` | Do not import during source capture | Local images in project-owned `local_data/machine_images` only |
+| local Excel workbook | Production source only | Never touched; LOCAL backend creates an isolated `local_data` workbook; it is not synchronized with cloud |
+| `data/machine_images` | Do not import during source capture | LOCAL images in project-owned `local_data/machine_images`; CLOUD staging uses only synthetic private Storage objects until separately authorized |
 | desktop updater | Keep only in Windows app | Web deployment replaces per-PC update mechanism |
 | Settings password gate | Preserve for parity | Existing local behavior until an explicit local product decision changes it |
 
@@ -39,6 +39,7 @@ window.clawApi.*   (compatibility adapter)
      |
      +--> local mock/stub during parity work
      +--> local FastAPI endpoints backed by the isolated workbook
+     +--> authenticated cloud adapter backed by the approved central staging project
 ```
 
 The compatibility layer allows the current UI to survive while backend behavior is migrated one method at a time.

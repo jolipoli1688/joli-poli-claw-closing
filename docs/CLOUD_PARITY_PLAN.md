@@ -1,5 +1,7 @@
 # Cloud Parity Plan
 
+> **HISTORICAL / SUPERSEDED:** The planning-status statement immediately below describes the pre-Phase-3 state only. Current cloud staging is authorized exclusively for `fbvzqdqjqcbjopuinknw`; it does not authorize real-data or real-image migration. LOCAL remains the accepted UAT reference, fallback, and regression environment.
+
 Status: planning only — no Supabase project was selected, connected, provisioned, migrated, or changed. No Excel workbook or image was copied. The local FastAPI plus `local_data/` implementation remains the approved UAT reference, fallback, and regression environment.
 
 ## 1. Production architecture

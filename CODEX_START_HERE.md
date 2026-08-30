@@ -23,7 +23,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Import_Current_Windows_App.ps
 5. Create `docs/BRIDGE_INVENTORY.md` listing every JS -> desktop/Python API interaction and its implementation/data dependency.
 6. Create `docs/BASELINE_UI_INVENTORY.md` listing the current pages, key DOM containers, Daily Closing stages, Review/Print containers, and relevant CSS sections.
 7. Do **not** redesign the UI.
-8. Do **not** connect to production Supabase.
+8. Do **not** connect to production Supabase or any unapproved project. The approved staging project is `fbvzqdqjqcbjopuinknw`; use it only when the active task explicitly authorizes cloud staging work.
 9. Do **not** modify the imported legacy snapshot.
 10. Run syntax checks on the imported JS/Python source where available and report results.
 
@@ -37,4 +37,4 @@ Success for the first browser milestone is **visual/workflow parity**, not a new
 
 ## Important
 
-Do not apply the Supabase migrations yet unless a development project has been explicitly selected. The existing Windows updater project must not be repurposed accidentally.
+The existing Windows updater project must never be repurposed. Preserve LOCAL mode and use `window.clawApi` as the local/cloud compatibility boundary. Real production workbook, image, user, and closing migration still requires separate authorization.

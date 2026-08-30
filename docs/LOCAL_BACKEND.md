@@ -1,6 +1,6 @@
 # Local backend
 
-The active architecture is permanently local-only:
+LOCAL mode remains an accepted, supported mode:
 
 ```text
 Browser UI -> window.clawApi -> local FastAPI -> local_data/claw_machine_database.xlsx
@@ -25,7 +25,7 @@ Run `scripts\Start_Web_Parity.bat` to start the FastAPI server and open `http://
 - Calculation/draft: `/api/calculate`, `/api/closings/save`.
 - Static UI: `/`, `/claw-api.js`, `/assets/*`.
 
-The desktop software-update endpoints return disabled responses. Supabase files are archived and never contacted.
+The desktop software-update endpoints return disabled responses. LOCAL mode never contacts Supabase; CLOUD staging is separately available only through the authenticated `window.clawApi` cloud adapter and approved project `fbvzqdqjqcbjopuinknw`.
 # UAT and regression data isolation
 
 `scripts/Start_Web_Parity.bat` always starts the normal local UAT server on
