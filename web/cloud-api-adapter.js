@@ -5,8 +5,18 @@
 // credentials with elevated privileges.
 window.createClawCloudAdapter = function createClawCloudAdapter(config) {
   const baseUrl = String(config?.apiBaseUrl || "").replace(/\/$/, "");
+  const projectRef = String(config?.projectRef || "");
   const getAccessToken = typeof config?.getAccessToken === "function" ? config.getAccessToken : null;
-  if (!baseUrl || !getAccessToken) throw new Error("Cloud adapter requires an HTTPS API URL and session-token provider.");
+  if (projectRef !== "fbvzqdqjqcbjopuinknw") throw new Error("Cloud adapter is restricted to the approved JOLI POLI staging project.");
+  let endpoint;
+  try {
+    endpoint = new URL(baseUrl);
+  } catch {
+    throw new Error("Cloud adapter requires an HTTPS API URL and session-token provider.");
+  }
+  if (endpoint.protocol !== "https:" || endpoint.hostname !== `${projectRef}.supabase.co` || !getAccessToken) {
+    throw new Error("Cloud adapter requires the approved staging HTTPS function URL and a session-token provider.");
+  }
   return {
     mode: "cloud",
     async request(path, options = {}) {

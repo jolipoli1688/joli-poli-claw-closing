@@ -12,7 +12,7 @@ const clawSource = await readFile(path.join(projectRoot, "web", "claw-api.js"), 
 
 const response = (body, ok = true) => ({ ok, status: ok ? 200 : 400, json: async () => body });
 const runAdapter = ({ cloudConfig, fetch }) => {
-  const context = { window: { __CLAW_CLOUD_CONFIG__: cloudConfig }, fetch, console };
+  const context = { window: { __CLAW_CLOUD_CONFIG__: cloudConfig }, fetch, console, URL };
   vm.createContext(context);
   if (cloudConfig?.mode === "cloud") vm.runInContext(cloudSource, context);
   vm.runInContext(clawSource, context);
@@ -34,7 +34,7 @@ assert.equal(localRequest.options.headers["X-Regression"], "yes");
 
 let cloudRequest;
 const cloud = runAdapter({
-  cloudConfig: { mode: "cloud", apiBaseUrl: "https://staging.example.invalid/api/", getAccessToken: async () => "session-token" },
+  cloudConfig: { mode: "cloud", projectRef: "fbvzqdqjqcbjopuinknw", apiBaseUrl: "https://fbvzqdqjqcbjopuinknw.supabase.co/functions/v1/claw-api/", getAccessToken: async () => "session-token" },
   fetch: async (pathValue, options) => {
     cloudRequest = { pathValue, options };
     return response({ ok: true });
@@ -42,15 +42,20 @@ const cloud = runAdapter({
 });
 assert.equal(cloud.mode, "cloud");
 await cloud.request("/api/bootstrap", { headers: { "X-Regression": "yes" } });
-assert.equal(cloudRequest.pathValue, "https://staging.example.invalid/api/api/bootstrap");
+assert.equal(cloudRequest.pathValue, "https://fbvzqdqjqcbjopuinknw.supabase.co/functions/v1/claw-api/api/bootstrap");
 assert.equal(cloudRequest.options.headers.Authorization, "Bearer session-token");
 assert.equal(cloudRequest.options.headers["Content-Type"], "application/json");
 assert.equal(cloudRequest.options.headers["X-Regression"], "yes");
 
 const noToken = runAdapter({
-  cloudConfig: { mode: "cloud", apiBaseUrl: "https://staging.example.invalid", getAccessToken: async () => "" },
+  cloudConfig: { mode: "cloud", projectRef: "fbvzqdqjqcbjopuinknw", apiBaseUrl: "https://fbvzqdqjqcbjopuinknw.supabase.co/functions/v1/claw-api", getAccessToken: async () => "" },
   fetch: async () => response({ ok: true }),
 });
 await assert.rejects(() => noToken.request("/api/bootstrap"), /Sign in is required/);
+
+assert.throws(
+  () => runAdapter({ cloudConfig: { mode: "cloud", projectRef: "wrong-project", apiBaseUrl: "https://wrong-project.supabase.co/functions/v1/claw-api", getAccessToken: async () => "session-token" }, fetch: async () => response({}) }),
+  /restricted to the approved JOLI POLI staging project/,
+);
 
 console.log("PASS - local/cloud adapter contract; no network access attempted.");
