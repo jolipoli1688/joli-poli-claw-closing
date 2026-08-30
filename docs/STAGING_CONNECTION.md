@@ -28,3 +28,15 @@ the Supabase dashboard (for example `staging-claw-staff-a@…`,
 `staging-claw-admin@…`), then have a server-side administrator activate the
 corresponding profiles, assign roles, and grant store memberships. Never use
 employee accounts or role data from editable user metadata.
+
+## One-time synthetic Auth fixtures
+
+Create an ignored file named `.env.staging.local` at the repository root and
+set only `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and the four
+`STG_*_PASSWORD` variables listed in `.env.example`. Do not paste any value
+into chat, source code, browser configuration, or documentation. In a local
+shell, load those variables using the team's approved secret-loading method,
+then run `node scripts\provision_staging_auth_users.mjs`. The provisioner is
+restricted to this staging project, uses the server-side Auth Admin endpoint,
+confirms email, preserves existing passwords, and creates/repairs only the
+four named synthetic identities and their protected profile/store membership.
