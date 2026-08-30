@@ -90,6 +90,13 @@ assert.ok(developerEntry, "Developer must remain listable");
 await expectStatus(api(developer.access_token, `/api/users/${developerEntry.id}`, { method: "PATCH", body: { status: "inactive", role: "developer", outlets: [] } }), 400, "last active Developer protection");
 await expectStatus(api(developer.access_token, `/api/users/${users.outletA.id}`, { method: "PATCH", body: { status: "inactive", role: "outlet", outlets: ["STG-A"] } }), 200, "Developer deactivation");
 await expectStatus(api(developer.access_token, `/api/users/${users.outletA.id}`, { method: "PATCH", body: { status: "active", role: "outlet", outlets: ["STG-A"] } }), 200, "Developer reactivation");
+await expectStatus(api(developer.access_token, `/api/users/${users.outletA.id}`, { method: "PATCH", body: { status: "active", role: "outlet", outlets: ["STG-B"] } }), 200, "Developer outlet reassignment to STG-B");
+const reassignedOutlet = await login(users.outletA.username, users.outletA.password);
+const reassignedBootstrap = await expectStatus(api(reassignedOutlet.access_token, "/api/bootstrap"), 200, "reassigned Outlet bootstrap");
+assert.deepEqual(reassignedBootstrap.cloud_context.stores.map(store => store.code), ["STG-B"], "outlet reassignment must remove STG-A access immediately for a new session");
+await expectStatus(api(developer.access_token, `/api/users/${users.outletA.id}`, { method: "PATCH", body: { status: "active", role: "outlet", outlets: ["STG-A"] } }), 200, "Developer outlet reassignment back to STG-A");
+const restoredUsers = await expectStatus(api(developer.access_token, "/api/users"), 200, "post-edit user list refresh");
+assert.deepEqual(restoredUsers.find(row => row.id === users.outletA.id).outlets.map(outlet => outlet.code), ["STG-A"], "user list must return authoritative outlet objects after an edit");
 
 const { data: auditRows, error: auditError } = await service.from("audit_log").select("entity_id,action,metadata").eq("entity_type", "user").in("entity_id", Object.values(users).map(user => user.id));
 assert.ifError(auditError);
@@ -202,4 +209,4 @@ assert.match(Buffer.from(reportMonthly.content_base64, "base64").toString("utf8"
 const outletBReport = await api(outletB.access_token, `/api/reports/daily/${draft.closing_id}`, { method: "POST" });
 assert.equal(outletBReport.status, 400, "Outlet B cannot export a Store A closing");
 
-console.log(JSON.stringify({ ok: true, report_exports: [reportDaily.filename, reportMonthly.filename], checks: ["Developer login/session restore-refresh-logout-login", "Developer User Management create/list/normalization/audit", "Admin and Outlet role isolation", "last active Developer protection", "unauthenticated and direct-write denial", "private image upload/read/replace/fault-cleanup/remove", "cloud draft/reload/edit/finalization/history/carry-forward", "balanced and unbalanced calculation parity", "authenticated daily/monthly report exports"] }));
+console.log(JSON.stringify({ ok: true, report_exports: [reportDaily.filename, reportMonthly.filename], checks: ["Developer login/session restore-refresh-logout-login", "Developer User Management create/list/normalization/audit/edit/outlet reassignment", "Admin and Outlet role isolation", "last active Developer protection", "unauthenticated and direct-write denial", "private image upload/read/replace/fault-cleanup/remove", "cloud draft/reload/edit/finalization/history/carry-forward", "balanced and unbalanced calculation parity", "authenticated daily/monthly report exports"] }));

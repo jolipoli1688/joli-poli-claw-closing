@@ -25,6 +25,8 @@
   const show = visible => {
     const overlay = document.getElementById("clawStagingSignIn");
     if (overlay) overlay.hidden = !visible;
+    const shell = document.getElementById("appShell");
+    if (shell) shell.hidden = visible;
   };
   const refreshIfNeeded = async () => {
     if (!session) return null;
@@ -46,6 +48,7 @@
     const token = session?.access_token;
     persist(null);
     if (token) await fetch(`${config.supabaseUrl}/auth/v1/logout`, { method: "POST", headers: { ...authHeaders(), Authorization: `Bearer ${token}` } }).catch(() => {});
+    window.dispatchEvent(new Event("claw-cloud-signed-out"));
     show(true);
   };
   const mount = () => {
@@ -73,10 +76,10 @@
     badge.title = "Sign out of cloud staging";
     badge.style.cssText = "position:fixed;right:10px;bottom:10px;z-index:9000;padding:4px 7px;border-radius:5px;background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;font:700 11px system-ui;letter-spacing:.08em;cursor:pointer";
     badge.addEventListener("click", signOut);
-    document.body.appendChild(badge);
+    void badge;
   };
   config.getAccessToken = async () => { await ready; const current = await refreshIfNeeded(); return current?.access_token || ""; };
-  config.onSessionExpired = () => { persist(null); show(true); };
+  config.onSessionExpired = () => { persist(null); window.dispatchEvent(new Event("claw-cloud-signed-out")); show(true); };
   window.clawCloudAuth = { signOut, session: () => session, ready };
   document.addEventListener("DOMContentLoaded", () => { mount(); restore(); });
 })();

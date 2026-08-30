@@ -21,6 +21,11 @@
     if (outlets.some(outlet => outlet.code === "ALL")) return "All outlets";
     return outlets.map(outlet => outlet.name || outlet.code).filter(Boolean).join(", ") || "No outlet assigned";
   };
+  const validTemporaryPassword = value => {
+    const password = String(value || "");
+    if (password.length < 12 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password) || !/[^A-Za-z0-9]/.test(password)) return "Temporary password must be at least 12 characters and include uppercase, lowercase, number, and symbol.";
+    return "";
+  };
 
   const show = async () => {
     const [users, bootstrap] = await Promise.all([request("/api/users"), request("/api/bootstrap")]);
@@ -29,6 +34,11 @@
     root.id = "clawDeveloperUsers";
     root.innerHTML = `<div class="claw-users-backdrop" role="presentation"><div class="claw-users-dialog" role="dialog" aria-modal="true" aria-labelledby="clawUsersTitle"><header class="claw-users-header"><div><h2 id="clawUsersTitle">User Management</h2><p>Manage application users and outlet access.</p></div><div class="claw-users-header-actions"><span class="claw-staging-pill">STAGING</span><button class="claw-icon-button" id="clawUsersClose" type="button" aria-label="Close User Management">×</button></div></header><div class="claw-users-body"><div class="claw-users-toolbar"><div class="claw-users-filters"><label class="claw-search-field"><span class="claw-sr-only">Search users</span><input id="clawUserSearch" type="search" placeholder="Search users" autocomplete="off"></label><label class="claw-filter-field"><span class="claw-sr-only">Filter by role</span><select id="clawUserRole"><option value="">All roles</option><option value="developer">Developer</option><option value="admin">Admin</option><option value="outlet">Outlet</option></select></label><label class="claw-inactive-toggle"><input id="clawUserInactive" type="checkbox"> <span>Show inactive</span></label></div><button id="clawUserAdd" class="btn btn-primary claw-users-add" type="button">+ Add User</button></div><div class="claw-users-table-wrap"><table class="claw-users-table"><thead><tr><th>Username</th><th>Role</th><th>Outlet Access</th><th>Status</th><th><span class="claw-sr-only">Actions</span></th></tr></thead><tbody id="clawUsersRows"></tbody></table></div></div></div></div>`;
     document.body.appendChild(root);
+    const notice = document.createElement("p");
+    notice.id = "clawUserManagementNotice";
+    notice.className = "claw-user-management-notice";
+    notice.setAttribute("aria-live", "polite");
+    root.querySelector(".claw-users-toolbar").after(notice);
     const close = () => root.remove();
     root.querySelector("#clawUsersClose").onclick = close;
     root.querySelector(".claw-users-backdrop").addEventListener("click", event => { if (event.target === event.currentTarget) close(); });
@@ -52,8 +62,10 @@
       const closeForm = () => formLayer.remove();
       formLayer.querySelectorAll("[data-close-form]").forEach(button => { button.onclick = closeForm; });
       formLayer.addEventListener("click", event => { if (event.target === formLayer) closeForm(); });
+      let saving = false;
       formLayer.querySelector("form").addEventListener("submit", async event => {
         event.preventDefault();
+        if (saving) return;
         const form = new FormData(event.currentTarget);
         const roleValue = form.get("role");
         const payload = { role: roleValue, outlets: roleValue === "outlet" ? form.getAll("outlets") : [] };
@@ -61,12 +73,27 @@
         else { payload.username = form.get("username"); payload.temporary_password = form.get("temporary_password"); payload.status = "active"; }
         const error = formLayer.querySelector(".claw-user-form-error");
         error.textContent = "";
+        if (!editing) {
+          const passwordError = validTemporaryPassword(form.get("temporary_password"));
+          if (passwordError) { error.textContent = passwordError; return; }
+        }
+        saving = true;
+        const submit = formLayer.querySelector("button[type=submit]");
+        const originalText = submit.textContent;
+        submit.textContent = editing ? "Saving…" : "Creating…";
+        formLayer.querySelectorAll("button, input, select").forEach(control => { control.disabled = true; });
         try {
-          const saved = await request(editing ? `/api/users/${user.id}` : "/api/users", { method: editing ? "PATCH" : "POST", body: JSON.stringify(payload) });
-          const index = state.users.findIndex(item => item.id === saved.id);
-          if (index >= 0) state.users[index] = saved; else state.users.push(saved);
-          closeForm(); renderRows();
-        } catch (cause) { error.textContent = cause.message; }
+          await request(editing ? `/api/users/${user.id}` : "/api/users", { method: editing ? "PATCH" : "POST", body: JSON.stringify(payload) });
+          state.users = await request("/api/users");
+          closeForm();
+          root.querySelector("#clawUserManagementNotice").textContent = editing ? "User changes saved." : "User created.";
+          renderRows();
+        } catch (cause) {
+          error.textContent = cause.message || "The user could not be saved.";
+          saving = false;
+          submit.textContent = originalText;
+          formLayer.querySelectorAll("button, input, select").forEach(control => { control.disabled = false; });
+        }
       });
       formLayer.querySelector("input:not([readonly]), select")?.focus();
     };
@@ -79,18 +106,5 @@
     root.querySelector("#clawUserSearch").focus();
   };
 
-  document.addEventListener("DOMContentLoaded", async () => {
-    try {
-      await window.clawCloudAuth.ready;
-      if (!window.clawCloudAuth.session()) return;
-      const bootstrap = await request("/api/bootstrap");
-      if (bootstrap.cloud_context?.profile?.role !== "developer") return;
-      const button = document.createElement("button");
-      button.id = "clawManageUsersButton";
-      button.type = "button";
-      button.textContent = "Manage Users";
-      button.onclick = () => show().catch(error => alert(error.message));
-      document.body.appendChild(button);
-    } catch (_) { /* Session UI remains responsible for sign-in failures. */ }
-  });
+  window.clawCloudUserManagement = { show: () => show() };
 })();
