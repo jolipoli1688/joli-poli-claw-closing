@@ -11,7 +11,10 @@ images, employee accounts, or a production cutover.
 2. Add only the browser-safe `CLAW_SUPABASE_PUBLISHABLE_KEY`. Never put a
    service-role key, password, or token in this file.
 3. Double-click [Start_Cloud_Staging.bat](../Start_Cloud_Staging.bat).
-4. Confirm the browser opens `http://localhost:3000/` and shows **STAGING**.
+4. Confirm the browser opens `http://localhost:3001/` and shows **STAGING**.
+
+`http://localhost:3000/` remains reserved for normal local development; do not
+use it for CLOUD STAGING.
 
 Use the Developer account you already know. In Developer User Management,
 deactivate obsolete synthetic accounts if needed, then create users chosen by

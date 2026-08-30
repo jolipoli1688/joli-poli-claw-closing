@@ -41,4 +41,4 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    ThreadingHTTPServer(("localhost", 3000), Handler).serve_forever()
+    ThreadingHTTPServer(("localhost", 3001), Handler).serve_forever()

@@ -30,9 +30,14 @@ table access or a service-role key in the browser.
 For manual Chrome/Edge UAT, double-click `Start_Cloud_Staging.bat`. Copy the
 tracked `.env.cloud-staging.example` to the ignored
 `.env.cloud-staging.local`, set only its browser-safe publishable key, and use
-the opened `http://localhost:3000/` page. The batch launcher fixes the approved
+the opened `http://localhost:3001/` page. The batch launcher fixes the approved
 staging URL/ref and rejects a browser config containing a service-role key.
 See `docs/MANUAL_CLOUD_BROWSER_UAT.md` for the required sign-off checks.
+
+Port separation is deliberate: normal local development remains reserved for
+`http://localhost:3000/`, while CLOUD STAGING uses `http://localhost:3001/`.
+The project-owned local parity-UAT launcher remains independently unchanged on
+its existing port.
 
 > **HISTORICAL / SUPERSEDED:** The following former four-email-account setup is
 > retained only as phase history. Do not create or use these accounts.
