@@ -14,10 +14,13 @@ The unchanged browser UI selects cloud mode only when its host injects
 use that ref's `*.supabase.co` function host. The local UI must not point at
 PostgREST tables directly.
 
-Cloud mode is deliberately not enabled yet: it requires an authenticated
-`/api/*` facade that implements the accepted local request/response contract,
-safe image replacement, and real staging Auth sessions. Do not enable it with
-raw table access or a service-role key in the browser.
+Cloud staging is enabled through the JWT-required `claw-api` Edge Function.
+Launch the unchanged UI with `python scripts\Start_Cloud_Staging.py` after
+setting `CLAW_SUPABASE_URL` and `CLAW_SUPABASE_PUBLISHABLE_KEY` in the invoking
+shell. The launcher injects those browser-safe values only into its response,
+shows a subtle **STAGING** indicator, and never writes values to disk. LOCAL
+mode remains `scripts\Start_Web_Parity.bat`. Do not enable cloud mode with raw
+table access or a service-role key in the browser.
 
 For later manual staging-only Auth setup, create clearly labelled accounts in
 the Supabase dashboard (for example `staging-claw-staff-a@…`,

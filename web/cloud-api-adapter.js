@@ -1,8 +1,7 @@
 "use strict";
 
-// Inactive production transport scaffold. It deliberately accepts only a
-// browser session token supplied by the host; it never contains Supabase
-// credentials with elevated privileges.
+// CLOUD transport deliberately accepts only a browser session token supplied
+// by the staging host. It never contains elevated Supabase credentials.
 window.createClawCloudAdapter = function createClawCloudAdapter(config) {
   const baseUrl = String(config?.apiBaseUrl || "").replace(/\/$/, "");
   const projectRef = String(config?.projectRef || "");
@@ -27,7 +26,8 @@ window.createClawCloudAdapter = function createClawCloudAdapter(config) {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...(options.headers || {}) },
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.detail || `Request failed (${response.status})`);
+      if (response.status === 401 && typeof config.onSessionExpired === "function") config.onSessionExpired();
+      if (!response.ok) throw new Error(body.detail || body.error || `Request failed (${response.status})`);
       return body;
     },
   };
