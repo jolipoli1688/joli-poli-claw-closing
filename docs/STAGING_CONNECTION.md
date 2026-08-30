@@ -20,24 +20,27 @@ use that ref's `*.supabase.co` function host. The local UI must not point at
 PostgREST tables directly.
 
 Cloud staging is enabled through the JWT-required `claw-api` Edge Function.
-Launch the unchanged UI with `python scripts\Start_Cloud_Staging.py` after
-setting `CLAW_SUPABASE_URL` and `CLAW_SUPABASE_PUBLISHABLE_KEY` in the invoking
-shell. The launcher injects those browser-safe values only into its response,
-shows a subtle **STAGING** indicator, and never writes values to disk. LOCAL
-mode remains `scripts\Start_Web_Parity.bat`. Do not enable cloud mode with raw
-table access or a service-role key in the browser.
+Use the canonical command `npm run dev:cloud` in Command Prompt, or
+`npm.cmd run dev:cloud` in PowerShell. It invokes the existing project cloud
+host, injects browser-safe values only into its response, shows a subtle
+**STAGING** indicator, and never writes secrets to disk. LOCAL development uses
+`npm run dev` (or `npm.cmd run dev` in PowerShell) and starts the accepted local
+FastAPI backend. Do not enable cloud mode with raw table access or a service-role
+key in the browser.
 
-For manual Chrome/Edge UAT, double-click `Start_Cloud_Staging.bat`. Copy the
+For manual Chrome/Edge UAT, run `npm run dev:cloud` (or double-click the thin
+`Start_Cloud_Staging.bat` convenience launcher). Copy the
 tracked `.env.cloud-staging.example` to the ignored
 `.env.cloud-staging.local`, set only its browser-safe publishable key, and use
-the opened `http://localhost:3001/` page. The batch launcher fixes the approved
+`http://localhost:3001/` page. The canonical runner fixes the approved
 staging URL/ref and rejects a browser config containing a service-role key.
 See `docs/MANUAL_CLOUD_BROWSER_UAT.md` for the required sign-off checks.
 
-Port separation is deliberate: normal local development remains reserved for
-`http://localhost:3000/`, while CLOUD STAGING uses `http://localhost:3001/`.
-The project-owned local parity-UAT launcher remains independently unchanged on
-its existing port.
+Port separation is deliberate: LOCAL development is
+`http://localhost:3000/`, while CLOUD STAGING is `http://localhost:3001/`.
+Both canonical commands refuse an occupied assigned port and never kill a
+process or silently choose another one. The project-owned local parity-UAT
+launcher remains independently unchanged on its existing port.
 
 > **HISTORICAL / SUPERSEDED:** The following former four-email-account setup is
 > retained only as phase history. Do not create or use these accounts.

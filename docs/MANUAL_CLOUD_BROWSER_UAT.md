@@ -10,8 +10,10 @@ images, employee accounts, or a production cutover.
    `.env.cloud-staging.local` file.
 2. Add only the browser-safe `CLAW_SUPABASE_PUBLISHABLE_KEY`. Never put a
    service-role key, password, or token in this file.
-3. Double-click [Start_Cloud_Staging.bat](../Start_Cloud_Staging.bat).
-4. Confirm the browser opens `http://localhost:3001/` and shows **STAGING**.
+3. In Command Prompt run `npm run dev:cloud`; in PowerShell run
+   `npm.cmd run dev:cloud`. [Start_Cloud_Staging.bat](../Start_Cloud_Staging.bat)
+   is an equivalent thin convenience launcher.
+4. Open `http://localhost:3001/` and confirm it shows **STAGING**.
 
 `http://localhost:3000/` remains reserved for normal local development; do not
 use it for CLOUD STAGING.
