@@ -55,3 +55,18 @@ restricted to this staging project, uses the server-side Auth Admin endpoint,
 confirms the internal Auth identity, preserves existing passwords, and
 creates/repairs only the single Developer bootstrap identity and its protected
 profile/store membership.
+
+## Authenticated staging UAT
+
+With the same ignored local environment loaded, run
+`node scripts\test_authenticated_cloud_staging.mjs`. It signs in the existing
+Developer, creates synthetic Admin and Outlet test identities only through the
+authenticated Developer API, and keeps generated temporary passwords in memory
+only. It verifies user-management audit records, session lifecycle, role/store
+isolation, direct-write denial, private image lifecycle, and synthetic closing
+calculation/finalization/carry-forward parity. It must never be run against a
+project other than the approved staging ref.
+
+Cloud daily/monthly export endpoints remain a separate implementation gate;
+the authenticated UAT records their current HTTP status rather than treating a
+missing export route as a successful export.

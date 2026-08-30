@@ -23,6 +23,8 @@ assert.ok(!/name=\\"email\\"|>Email</.test(runtime), "cloud login must not expos
 assert.match(users, /Add User/, "Developer UI must provide Add User");
 assert.match(users, /Username/, "Developer UI must display Username");
 assert.ok(!/>Email<|name=\\"email\\"/.test(users), "Developer UI must not expose technical Auth email");
+assert.match(edge, /apply_developer_user_profile/, "Developer-managed users must use the transactional profile/access RPC");
+assert.match(edge, /auth\.admin\.deleteUser/, "failed user setup must compensate by removing the new Auth identity");
 assert.match(launcher, /CLAW_SUPABASE_PUBLISHABLE_KEY/, "launcher must inject only runtime configuration");
 assert.ok(!runtime.includes("SERVICE_ROLE"), "browser runtime must not contain a service-role key");
 console.log("PASS - cloud Phase 4 façade/runtime contract");
