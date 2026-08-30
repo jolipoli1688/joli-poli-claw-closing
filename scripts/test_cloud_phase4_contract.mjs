@@ -25,6 +25,11 @@ assert.ok(!/name=\\"email\\"|>Email</.test(runtime), "cloud login must not expos
 assert.match(users, /Add User/, "Developer UI must provide Add User");
 assert.match(users, /Username/, "Developer UI must display Username");
 assert.ok(!/>Email<|name=\\"email\\"/.test(users), "Developer UI must not expose technical Auth email");
+assert.match(users, /Show inactive/, "Developer UI must hide inactive accounts by default with an explicit toggle");
+assert.match(users, /data-user-id/, "Developer UI must expose the existing edit/update action");
+assert.match(users, /method: editing \? "PATCH" : "POST"/, "Developer UI must retain create and update API behavior");
+assert.match(users, /claw-role-badge/, "Developer UI must render readable role badges");
+assert.match(users, /claw-status-badge/, "Developer UI must render readable status badges");
 assert.match(edge, /apply_developer_user_profile/, "Developer-managed users must use the transactional profile/access RPC");
 assert.match(edge, /auth\.admin\.deleteUser/, "failed user setup must compensate by removing the new Auth identity");
 assert.match(launcher, /CLAW_SUPABASE_PUBLISHABLE_KEY/, "launcher must inject only runtime configuration");
