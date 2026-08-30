@@ -30,7 +30,7 @@ table access or a service-role key in the browser.
 For manual Chrome/Edge UAT, double-click `Start_Cloud_Staging.bat`. Copy the
 tracked `.env.cloud-staging.example` to the ignored
 `.env.cloud-staging.local`, set only its browser-safe publishable key, and use
-the opened `http://127.0.0.1:4175/` page. The batch launcher fixes the approved
+the opened `http://localhost:3000/` page. The batch launcher fixes the approved
 staging URL/ref and rejects a browser config containing a service-role key.
 See `docs/MANUAL_CLOUD_BROWSER_UAT.md` for the required sign-off checks.
 
