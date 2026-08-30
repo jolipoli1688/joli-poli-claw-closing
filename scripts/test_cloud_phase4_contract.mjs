@@ -28,6 +28,18 @@ assert.match(runtime, /claw-cloud-signed-out/, "session termination must clear t
 assert.match(runtime, /Username/, "cloud login must present Username, not Email");
 assert.match(runtime, /@claw\.internal/, "cloud login must derive an internal Auth identifier");
 assert.ok(!/name=\\"email\\"|>Email</.test(runtime), "cloud login must not expose an email field");
+assert.match(runtime, /Welcome Back/, "cloud login must render the branded welcome heading");
+assert.match(runtime, /Sign in to continue to Claw Closing/, "cloud login must render the product sign-in context");
+assert.match(runtime, /claw-login-password-toggle/, "cloud login must provide a password visibility control");
+assert.match(runtime, /Signing in…/, "cloud login must provide an in-progress state");
+assert.match(runtime, /dataset\.submitting/, "cloud login must prevent duplicate submission");
+assert.match(runtime, /error\.hidden = false/, "cloud login must render inline authentication errors");
+assert.match(runtime, /Unable to sign in right now/, "cloud login must recover from a network error without a browser alert");
+assert.match(runtime, /Enter your password/, "cloud login must render a missing-password error inline");
+assert.ok(!/Google sign|GitHub sign|Facebook sign|Create Account|Forgot Password/i.test(runtime), "cloud login must remain a controlled company login");
+assert.match(styles, /claw-login-card/, "cloud login must use the glass login card treatment");
+assert.match(styles, /backdrop-filter:blur\(22px\)/, "cloud login card must preserve the frosted-glass effect");
+assert.match(styles, /#f4d500/i, "cloud login background must use the JOLI POLI yellow palette");
 assert.match(users, /Add User/, "Developer UI must provide Add User");
 assert.match(users, /Username/, "Developer UI must display Username");
 assert.ok(!/>Email<|name=\\"email\\"/.test(users), "Developer UI must not expose technical Auth email");

@@ -56,27 +56,57 @@
     root.id = "clawStagingSignIn";
     root.hidden = true;
     root.innerHTML = '<div style="position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(15,23,42,.42)"><form id="clawStagingSignInForm" style="width:min(360px,calc(100vw - 32px));padding:24px;border-radius:14px;background:#fff;box-shadow:0 20px 60px rgba(15,23,42,.28);font:14px system-ui"><div style="font-size:12px;font-weight:800;letter-spacing:.08em;color:#b45309">STAGING</div><h1 style="margin:7px 0 16px;font-size:22px;color:#102a43">JOLI POLI Claw</h1><label>Username<input name="username" type="text" autocomplete="username" required style="display:block;width:100%;box-sizing:border-box;margin:6px 0 12px;padding:10px"></label><label>Password<input name="password" type="password" autocomplete="current-password" required style="display:block;width:100%;box-sizing:border-box;margin:6px 0 16px;padding:10px"></label><p id="clawStagingSignInError" style="min-height:18px;color:#b42318"></p><button type="submit" style="width:100%;padding:10px;border:0;border-radius:7px;background:#102a43;color:#fff;font-weight:700">Sign in to staging</button></form></div>';
+    const form = root.querySelector("form");
+    form.className = "claw-login-card";
+    form.setAttribute("novalidate", "");
+    form.innerHTML = `<div class="claw-login-environment">STAGING</div><header class="claw-login-brand"><img src="./assets/brand-logo.png" alt="JOLI POLI" class="claw-login-logo"><div><strong>JOLI POLI</strong><span>Claw Closing</span></div></header><div class="claw-login-heading"><h1>Welcome Back</h1><p>Sign in to continue to Claw Closing</p></div><div id="clawStagingSignInError" class="claw-login-error" role="alert" hidden></div><label class="claw-login-field"><span>Username</span><span class="claw-login-input"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.25"></circle><path d="M4.75 20c.9-3.25 3.35-5 7.25-5s6.35 1.75 7.25 5"></path></svg><input name="username" type="text" autocomplete="username" required></span></label><label class="claw-login-field"><span>Password</span><span class="claw-login-input"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="5.5" y="10" width="13" height="10" rx="2"></rect><path d="M8.5 10V7.5a3.5 3.5 0 0 1 7 0V10"></path></svg><input name="password" type="password" autocomplete="current-password" required><button type="button" class="claw-login-password-toggle" aria-label="Show password" title="Show password"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M2.75 12s3.25-5 9.25-5 9.25 5 9.25 5-3.25 5-9.25 5-9.25-5-9.25-5Z"></path><circle cx="12" cy="12" r="2.5"></circle></svg></button></span></label><button type="submit" class="claw-login-submit"><span>Sign In</span></button></form>`;
+    const passwordInput = form.elements.password;
+    const passwordToggle = form.querySelector(".claw-login-password-toggle");
+    passwordToggle.addEventListener("click", () => {
+      const showing = passwordInput.type === "text";
+      passwordInput.type = showing ? "password" : "text";
+      passwordToggle.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+      passwordToggle.title = showing ? "Show password" : "Hide password";
+    });
     document.body.appendChild(root);
-    root.querySelector("form").addEventListener("submit", async event => {
+    form.addEventListener("submit", async event => {
       event.preventDefault();
+      if (event.currentTarget.dataset.submitting === "true") return;
       const form = new FormData(event.currentTarget);
       const error = root.querySelector("#clawStagingSignInError");
       error.textContent = "";
+      error.hidden = true;
       let email;
-      try { email = internalEmailForUsername(form.get("username")); } catch (cause) { error.textContent = cause.message; return; }
-      const response = await fetch(`${config.supabaseUrl}/auth/v1/token?grant_type=password`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ email, password: form.get("password") }) });
-      if (!response.ok) { error.textContent = "Sign-in failed. Check the username and password."; return; }
+      try { email = internalEmailForUsername(form.get("username")); } catch (cause) { error.textContent = cause.message; error.hidden = false; return; }
+      if (!String(form.get("password") || "")) { error.textContent = "Enter your password."; error.hidden = false; return; }
+      const submit = root.querySelector(".claw-login-submit");
+      const stopSubmitting = () => {
+        event.currentTarget.dataset.submitting = "false";
+        submit.disabled = false;
+        submit.querySelector("span").textContent = "Sign In";
+      };
+      event.currentTarget.dataset.submitting = "true";
+      submit.disabled = true;
+      submit.querySelector("span").textContent = "Signing in…";
+      let response;
+      try {
+        response = await fetch(`${config.supabaseUrl}/auth/v1/token?grant_type=password`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ email, password: form.get("password") }) });
+      } catch (_) {
+        error.textContent = "Unable to sign in right now. Check your connection and try again.";
+        error.hidden = false;
+        stopSubmitting();
+        return;
+      }
+      if (!response.ok) {
+        error.textContent = "Sign-in failed. Check the username and password.";
+        error.hidden = false;
+        stopSubmitting();
+        return;
+      }
       persist(await response.json());
       show(false);
       location.reload();
     });
-    const badge = document.createElement("button");
-    badge.type = "button";
-    badge.textContent = "STAGING · Sign out";
-    badge.title = "Sign out of cloud staging";
-    badge.style.cssText = "position:fixed;right:10px;bottom:10px;z-index:9000;padding:4px 7px;border-radius:5px;background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;font:700 11px system-ui;letter-spacing:.08em;cursor:pointer";
-    badge.addEventListener("click", signOut);
-    void badge;
   };
   config.getAccessToken = async () => { await ready; const current = await refreshIfNeeded(); return current?.access_token || ""; };
   config.onSessionExpired = () => { persist(null); window.dispatchEvent(new Event("claw-cloud-signed-out")); show(true); };
