@@ -12,6 +12,11 @@
   const ready = new Promise(resolve => { readyResolve = resolve; });
 
   const authHeaders = () => ({ apikey: config.publishableKey, "Content-Type": "application/json" });
+  const internalEmailForUsername = value => {
+    const username = String(value || "").normalize("NFKC").trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9._-]/g, "").replace(/-+/g, "-");
+    if (!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(username)) throw new Error("Enter a valid username.");
+    return `${username}@claw.internal`;
+  };
   const persist = value => {
     session = value || null;
     if (session) localStorage.setItem(storageKey, JSON.stringify(session));
@@ -47,15 +52,17 @@
     const root = document.createElement("section");
     root.id = "clawStagingSignIn";
     root.hidden = true;
-    root.innerHTML = '<div style="position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(15,23,42,.42)"><form id="clawStagingSignInForm" style="width:min(360px,calc(100vw - 32px));padding:24px;border-radius:14px;background:#fff;box-shadow:0 20px 60px rgba(15,23,42,.28);font:14px system-ui"><div style="font-size:12px;font-weight:800;letter-spacing:.08em;color:#b45309">STAGING</div><h1 style="margin:7px 0 16px;font-size:22px;color:#102a43">JOLI POLI Claw</h1><label>Email<input name="email" type="email" autocomplete="email" required style="display:block;width:100%;box-sizing:border-box;margin:6px 0 12px;padding:10px"></label><label>Password<input name="password" type="password" autocomplete="current-password" required style="display:block;width:100%;box-sizing:border-box;margin:6px 0 16px;padding:10px"></label><p id="clawStagingSignInError" style="min-height:18px;color:#b42318"></p><button type="submit" style="width:100%;padding:10px;border:0;border-radius:7px;background:#102a43;color:#fff;font-weight:700">Sign in to staging</button></form></div>';
+    root.innerHTML = '<div style="position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(15,23,42,.42)"><form id="clawStagingSignInForm" style="width:min(360px,calc(100vw - 32px));padding:24px;border-radius:14px;background:#fff;box-shadow:0 20px 60px rgba(15,23,42,.28);font:14px system-ui"><div style="font-size:12px;font-weight:800;letter-spacing:.08em;color:#b45309">STAGING</div><h1 style="margin:7px 0 16px;font-size:22px;color:#102a43">JOLI POLI Claw</h1><label>Username<input name="username" type="text" autocomplete="username" required style="display:block;width:100%;box-sizing:border-box;margin:6px 0 12px;padding:10px"></label><label>Password<input name="password" type="password" autocomplete="current-password" required style="display:block;width:100%;box-sizing:border-box;margin:6px 0 16px;padding:10px"></label><p id="clawStagingSignInError" style="min-height:18px;color:#b42318"></p><button type="submit" style="width:100%;padding:10px;border:0;border-radius:7px;background:#102a43;color:#fff;font-weight:700">Sign in to staging</button></form></div>';
     document.body.appendChild(root);
     root.querySelector("form").addEventListener("submit", async event => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
       const error = root.querySelector("#clawStagingSignInError");
       error.textContent = "";
-      const response = await fetch(`${config.supabaseUrl}/auth/v1/token?grant_type=password`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ email: form.get("email"), password: form.get("password") }) });
-      if (!response.ok) { error.textContent = "Sign-in failed. Check the staging account details."; return; }
+      let email;
+      try { email = internalEmailForUsername(form.get("username")); } catch (cause) { error.textContent = cause.message; return; }
+      const response = await fetch(`${config.supabaseUrl}/auth/v1/token?grant_type=password`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ email, password: form.get("password") }) });
+      if (!response.ok) { error.textContent = "Sign-in failed. Check the username and password."; return; }
       persist(await response.json());
       show(false);
       location.reload();

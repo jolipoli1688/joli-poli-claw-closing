@@ -1,0 +1,8 @@
+{
+  "name": "joli-poli-claw-staging-tools",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@supabase/supabase-js": "2.112.4"
+  }
+}

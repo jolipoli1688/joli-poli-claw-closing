@@ -19,6 +19,8 @@ Accepted browser UI -> window.clawApi -> local adapter -> isolated project-owned
 
 Cloud staging work is explicitly authorized only for **JOLI POLI Claw Staging** (`fbvzqdqjqcbjopuinknw`, `ap-southeast-1`). Supabase schema, Auth, Storage, RPCs, Edge Functions, and the cloud adapter may be implemented and tested there with synthetic staging data. Do not change any other Supabase project unless separately authorized.
 
+Cloud application identities use Username + Password. Supabase may hold a derived technical email identifier internally, but the UI and user-management APIs must never request or display it. The authoritative roles are Developer, Admin, and Outlet; only Developer manages user identities, and Outlet users receive explicit outlet memberships.
+
 - LOCAL mode must remain functional while CLOUD staging is developed.
 - Do not duplicate or redesign the accepted browser UI, Review, or Print View during backend migration.
 - Browser configuration may expose only browser-safe Supabase configuration. Service-role keys, passwords, access tokens, and all other secrets must never be committed or exposed in browser code.
