@@ -1649,6 +1649,16 @@ async function exportMonthlyReport() {
   try {
     const month = document.getElementById("reportMonth").value;
     const result = await api("/api/reports/monthly", { method: "POST", body: JSON.stringify({month}) });
+    if (result.content_base64 && result.filename) {
+      const binary = atob(result.content_base64);
+      const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: result.mime_type || "text/csv;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = result.filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
     toast("Monthly report created", result.path);
   } catch (error) { toast("Cannot export report", error.message, "error"); }
 }

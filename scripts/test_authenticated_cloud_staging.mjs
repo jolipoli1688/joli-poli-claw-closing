@@ -53,6 +53,7 @@ async function expectStatus(promise, expected, label) {
 }
 
 const runSuffix = crypto.randomBytes(5).toString("hex");
+const fixtureYear = 3000 + (Number.parseInt(runSuffix.slice(0, 4), 16) % 6000);
 const users = {
   admin: { username: `STG Admin UAT ${runSuffix}`, role: "admin", outlets: [] },
   outletA: { username: `STG Outlet A UAT ${runSuffix}`, role: "outlet", outlets: ["STG-A"] },
@@ -79,6 +80,7 @@ const listed = await expectStatus(api(developer.access_token, "/api/users"), 200
 assert.ok(!JSON.stringify(listed).includes("@claw.internal"), "internal Auth email must not be displayed");
 for (const user of Object.values(users)) assert.ok(listed.some(row => row.id === user.id && row.username === normalize(user.username)), "created user must be listed by username");
 await expectStatus(api(developer.access_token, "/api/users", { method: "POST", body: { username: users.admin.username, temporary_password: password(), role: "admin", outlets: [], status: "active" } }), 400, "duplicate normalized username rejection");
+await expectStatus(api(developer.access_token, "/api/users", { method: "POST", body: { username: `stg-weak-password-${runSuffix}`, temporary_password: "onlylowercase", role: "admin", outlets: [], status: "active" } }), 400, "temporary password strength rejection");
 await expectStatus(api(developer.access_token, "/api/users", { method: "POST", body: { username: `stg-invalid-outlet-${runSuffix}`, temporary_password: password(), role: "outlet", outlets: [], status: "active" } }), 400, "Outlet assignment requirement");
 const afterInvalid = await expectStatus(api(developer.access_token, "/api/users"), 200, "post-failure user list");
 assert.ok(!afterInvalid.some(row => row.username === `stg-invalid-outlet-${runSuffix}`), "failed user setup must compensate the new Auth/profile identity");
@@ -123,6 +125,18 @@ assert.ok(styleId, "synthetic STG-A machine style is required for image UAT");
 const firstImage = await expectStatus(api(developer.access_token, "/api/images/replace", { method: "POST", body: { machine_style_id: styleId, content_type: "image/png", image_base64: png } }), 200, "synthetic image upload");
 assert.ok(firstImage.image_path && firstImage.image_url, "private image upload must return its signed read URL");
 assert.ok((await fetch(firstImage.image_url)).ok, "signed private image read");
+const imagePrefix = firstImage.image_path.slice(0, firstImage.image_path.lastIndexOf("/"));
+const beforeFault = await service.storage.from("machine-style-images").list(imagePrefix, { limit: 100 });
+assert.ifError(beforeFault.error);
+const faultedImage = await api(developer.access_token, "/api/test/image-persistence-failure", { method: "POST", body: { machine_style_id: styleId, content_type: "image/png", image_base64: png } });
+assert.equal(faultedImage.status, 400, "controlled post-upload image persistence failure");
+const afterFault = await service.storage.from("machine-style-images").list(imagePrefix, { limit: 100 });
+assert.ifError(afterFault.error);
+assert.deepEqual(afterFault.data.map(row => row.name).sort(), beforeFault.data.map(row => row.name).sort(), "failed image persistence must clean the newly uploaded orphan");
+const styleAfterFault = await service.from("machine_styles").select("image_path").eq("id", styleId).single();
+assert.ifError(styleAfterFault.error);
+assert.equal(styleAfterFault.data.image_path, firstImage.image_path, "failed image persistence must preserve the old database reference");
+assert.ok(!(await service.storage.from("machine-style-images").download(firstImage.image_path)).error, "failed image persistence must preserve the old object");
 const secondImage = await expectStatus(api(developer.access_token, "/api/images/replace", { method: "POST", body: { machine_style_id: styleId, content_type: "image/png", image_base64: png } }), 200, "synthetic image replacement");
 assert.notEqual(secondImage.image_path, firstImage.image_path, "replacement must create a new object");
 const previousObject = await service.storage.from("machine-style-images").download(firstImage.image_path);
@@ -142,7 +156,7 @@ const manualMachine = await expectStatus(api(developer.access_token, "/api/machi
 const meterProducts = meterMachine.machine.Products;
 const manualProducts = manualMachine.machine.Products;
 const closingPayload = {
-  report_date: `2031-01-${String(10 + (Number.parseInt(runSuffix.slice(0, 2), 16) % 18)).padStart(2, "0")}`,
+  report_date: `${fixtureYear}-01-15`,
   closed_by: "STG UAT Closer",
   verified_by: "STG UAT Verifier",
   notes: "Synthetic authenticated cloud parity fixture.",
@@ -159,6 +173,14 @@ const reloadedDraft = await expectStatus(api(developer.access_token, `/api/closi
 assert.equal(reloadedDraft.products.length, 3, "cloud draft must retain all product rows");
 const edited = await expectStatus(api(developer.access_token, "/api/closings/save", { method: "POST", body: { ...closingPayload, closing_id: draft.closing_id, notes: "Synthetic cloud parity fixture (edited).", workflow_status: "Draft" } }), 200, "cloud draft edit");
 assert.equal(edited.closing_id, draft.closing_id, "cloud draft edit must retain the closing ID");
+const unbalancedPayload = { ...closingPayload, report_date: `${fixtureYear}-01-16`, sales: { ...closingPayload.sales, final_coins: 1 } };
+const unbalancedDraft = await expectStatus(api(developer.access_token, "/api/closings/save", { method: "POST", body: { ...unbalancedPayload, workflow_status: "Draft" } }), 200, "unbalanced draft save");
+const unbalancedFinalize = await api(developer.access_token, "/api/closings/save", { method: "POST", body: { ...unbalancedPayload, closing_id: unbalancedDraft.closing_id, workflow_status: "Finalized" } });
+assert.equal(unbalancedFinalize.status, 400, "unbalanced finalization must be rejected server-side");
+assert.match(unbalancedFinalize.body.detail || "", /coin variance is zero/i, "unbalanced finalization must return a useful error");
+const unbalancedAfter = await expectStatus(api(developer.access_token, `/api/closings/${unbalancedDraft.closing_id}`), 200, "unbalanced draft state after rejected finalization");
+assert.equal(unbalancedAfter.header.Workflow_Status, "Draft", "rejected finalization must leave the closing as a draft");
+assert.equal(unbalancedAfter.header.Finalized_At, null, "rejected finalization must not persist a finalization snapshot");
 const finalized = await expectStatus(api(developer.access_token, "/api/closings/save", { method: "POST", body: { ...closingPayload, closing_id: draft.closing_id, workflow_status: "Finalized" } }), 200, "cloud finalization");
 assert.equal(finalized.workflow_status, "Finalized", "cloud closing must finalize");
 const finalizedDetail = await expectStatus(api(developer.access_token, `/api/closings/${draft.closing_id}`), 200, "finalized cloud closing read");
@@ -168,10 +190,16 @@ const rejectedEdit = await api(developer.access_token, "/api/closings/save", { m
 assert.ok(rejectedEdit.status >= 400, "finalized closing must be immutable");
 const history = await expectStatus(api(developer.access_token, "/api/history"), 200, "cloud history");
 assert.ok(history.records.some(row => row.Closing_ID === draft.closing_id), "finalized closing must appear in history");
-const carryForward = await expectStatus(api(developer.access_token, `/api/new-closing?report_date=2031-02-01`), 200, "cloud carry-forward");
+const carryForward = await expectStatus(api(developer.access_token, `/api/new-closing?report_date=${fixtureYear}-02-01`), 200, "cloud carry-forward");
 const carriedMeter = carryForward.machines.find(machine => machine.machine_id === meterMachine.machine.Machine_ID);
 assert.equal(carriedMeter.products.find(product => product.product_id === meterProducts[0].product_id).begin_qty, 8, "cloud carry-forward must use prior Final Qty");
-const reportDaily = await api(developer.access_token, `/api/reports/daily/${draft.closing_id}`, { method: "POST" });
-const reportMonthly = await api(developer.access_token, "/api/reports/monthly", { method: "POST", body: { month: "2031-01" } });
+const reportDaily = await expectStatus(api(developer.access_token, `/api/reports/daily/${draft.closing_id}`, { method: "POST" }), 200, "daily report export");
+const reportMonthly = await expectStatus(api(developer.access_token, "/api/reports/monthly", { method: "POST", body: { month: `${fixtureYear}-01` } }), 200, "monthly report export");
+for (const report of [reportDaily, reportMonthly]) assert.ok(report.filename && report.content_base64 && report.path.startsWith("cloud-download:"), "authenticated report must return a download payload");
+assert.match(Buffer.from(reportDaily.content_base64, "base64").toString("utf8"), /STG UAT Meter/, "daily export must include machine detail");
+assert.match(Buffer.from(reportDaily.content_base64, "base64").toString("utf8"), /15/, "daily export must include final KPI values");
+assert.match(Buffer.from(reportMonthly.content_base64, "base64").toString("utf8"), /Totals/, "monthly export must include totals");
+const outletBReport = await api(outletB.access_token, `/api/reports/daily/${draft.closing_id}`, { method: "POST" });
+assert.equal(outletBReport.status, 400, "Outlet B cannot export a Store A closing");
 
-console.log(JSON.stringify({ ok: true, report_routes: { daily: reportDaily.status, monthly: reportMonthly.status }, checks: ["Developer login/session restore-refresh-logout-login", "Developer User Management create/list/normalization/audit", "Admin and Outlet role isolation", "last active Developer protection", "unauthenticated and direct-write denial", "private image upload/read/replace/remove", "cloud draft/reload/edit/finalization/history/carry-forward", "calculation and KPI parity"] }));
+console.log(JSON.stringify({ ok: true, report_exports: [reportDaily.filename, reportMonthly.filename], checks: ["Developer login/session restore-refresh-logout-login", "Developer User Management create/list/normalization/audit", "Admin and Outlet role isolation", "last active Developer protection", "unauthenticated and direct-write denial", "private image upload/read/replace/fault-cleanup/remove", "cloud draft/reload/edit/finalization/history/carry-forward", "balanced and unbalanced calculation parity", "authenticated daily/monthly report exports"] }));
