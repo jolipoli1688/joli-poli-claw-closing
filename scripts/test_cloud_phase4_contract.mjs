@@ -31,6 +31,7 @@ assert.match(runtime, /@claw\.internal/, "cloud login must derive an internal Au
 assert.ok(!/name=\\"email\\"|>Email</.test(runtime), "cloud login must not expose an email field");
 assert.match(runtime, /Welcome Back/, "cloud login must render the branded welcome heading");
 assert.match(runtime, /Sign in to continue to Claw Closing/, "cloud login must render the product sign-in context");
+assert.ok(!runtime.includes("Sign in to staging"), "cloud login must not present a technical staging submit label");
 assert.match(runtime, /claw-login-password-toggle/, "cloud login must provide a password visibility control");
 assert.match(runtime, /Signing in…/, "cloud login must provide an in-progress state");
 assert.match(runtime, /dataset\.submitting/, "cloud login must prevent duplicate submission");
@@ -39,7 +40,10 @@ assert.match(runtime, /Unable to sign in right now/, "cloud login must recover f
 assert.match(runtime, /Enter your password/, "cloud login must render a missing-password error inline");
 assert.ok(!/Google sign|GitHub sign|Facebook sign|Create Account|Forgot Password/i.test(runtime), "cloud login must remain a controlled company login");
 assert.match(styles, /claw-login-card/, "cloud login must use the glass login card treatment");
-assert.match(styles, /backdrop-filter:blur\(22px\)/, "cloud login card must preserve the frosted-glass effect");
+assert.match(styles, /backdrop-filter:blur\(28px\) saturate\(140%\)/, "cloud login card must use a strong frosted-glass treatment");
+assert.match(styles, /min-height:500px/, "cloud login card must have intentional desktop presence");
+assert.match(styles, /background:linear-gradient\(135deg,rgba\(255,255,255,.28\),rgba\(255,255,255,.17\)\)/, "cloud login card must remain translucent rather than opaque white");
+assert.match(styles, /claw-login-stage:before/, "cloud login background must retain visible depth behind the glass");
 assert.match(styles, /#f4d500/i, "cloud login background must use the JOLI POLI yellow palette");
 assert.match(users, /Add User/, "Developer UI must provide Add User");
 assert.match(users, /Username/, "Developer UI must display Username");
