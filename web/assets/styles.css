@@ -3590,9 +3590,9 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   overflow: hidden;
   padding: 32px;
   background:
-    radial-gradient(circle at 15% 14%, rgba(255, 255, 255, .92), transparent 27%),
-    radial-gradient(circle at 88% 88%, rgba(226, 219, 241, .64), transparent 36%),
-    linear-gradient(135deg, #f8f7fb 0%, #eeecf5 49%, #f9f8fb 100%);
+    radial-gradient(circle at 12% 12%, rgba(255, 255, 255, .82), transparent 25%),
+    radial-gradient(circle at 88% 88%, rgba(230, 228, 238, .46), transparent 34%),
+    linear-gradient(135deg, #fafafc 0%, #f5f4f8 50%, #f0eff5 100%);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -3610,24 +3610,32 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   pointer-events: none;
 }
 
+.claw-login-tubes path {
+  filter: drop-shadow(0 8px 6px rgba(107, 86, 8, .12));
+}
+
+.claw-login-tubes path:nth-of-type(2) {
+  transform: translateY(-42px);
+}
+
 .claw-login-card {
   position: relative;
   z-index: 1;
-  width: min(79.4vw, 1525px);
-  height: min(64vh, 690px);
-  min-height: min(64vh, 690px);
+  width: min(68vw, 1140px);
+  height: clamp(500px, 47.22vh, 510px);
+  min-height: 500px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, .78);
-  border-radius: 36px;
+  border: 1px solid rgba(255, 255, 255, .80);
+  border-radius: 28px;
   background:
-    linear-gradient(120deg, rgba(255, 255, 255, .68), rgba(255, 255, 255, .42)),
-    rgba(255, 255, 255, .52);
+    linear-gradient(120deg, rgba(255, 255, 255, .66), rgba(255, 255, 255, .38)),
+    rgba(255, 255, 255, .50);
   box-shadow:
     inset 1px 1px 0 rgba(255, 255, 255, .88),
-    inset -1px -1px 0 rgba(183, 174, 208, .16),
-    0 30px 80px rgba(68, 57, 96, .18);
-  backdrop-filter: blur(36px) saturate(135%);
-  -webkit-backdrop-filter: blur(36px) saturate(135%);
+    inset -1px -1px 0 rgba(183, 174, 208, .12),
+    0 24px 64px rgba(30, 28, 48, .10);
+  backdrop-filter: blur(34px) saturate(130%);
+  -webkit-backdrop-filter: blur(34px) saturate(130%);
   color: #171725;
   font: inherit;
 }
@@ -3638,50 +3646,66 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   content: "";
   pointer-events: none;
   background:
-    radial-gradient(ellipse at 18% 0%, rgba(255, 255, 255, .76), transparent 36%),
-    linear-gradient(112deg, rgba(255, 255, 255, .25), transparent 39%);
+    radial-gradient(ellipse at 17% 22%, rgba(255, 255, 255, .70), transparent 42%),
+    linear-gradient(112deg, rgba(255, 255, 255, .22), transparent 39%);
+}
+
+.claw-login-card::after {
+  position: absolute;
+  z-index: 0;
+  left: 10%;
+  bottom: 14%;
+  width: 34%;
+  height: 42%;
+  content: "";
+  pointer-events: none;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(255, 244, 183, .16), transparent 68%);
+  filter: blur(18px);
 }
 
 .claw-login-environment {
   position: absolute;
   z-index: 2;
-  top: 30px;
-  right: 34px;
+  top: 24px;
+  right: 26px;
   display: inline-flex;
   align-items: center;
-  min-height: 25px;
-  padding: 0 10px;
-  border: 1px solid rgba(151, 113, 0, .28);
+  min-height: 22px;
+  padding: 0 9px;
+  border: 1px solid rgba(185, 151, 0, .30);
   border-radius: 999px;
-  background: rgba(255, 245, 190, .62);
-  color: #735700;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: .12em;
+  background: rgba(244, 213, 0, .11);
+  color: #7e6900;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
 }
 
 .claw-login-form-stack {
   position: absolute;
   z-index: 1;
-  top: 84px;
-  left: 50%;
-  width: 388px;
+  top: calc(50% + 14px);
+  left: calc(75% - 216px);
+  width: 432px;
+  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 18px;
+  gap: 0;
 }
 
 .claw-login-brand {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
+  margin: 0 0 28px;
 }
 
 .claw-login-logo {
-  width: 58px;
-  height: 58px;
-  border-radius: 16px;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
   object-fit: cover;
   filter: drop-shadow(0 8px 14px rgba(87, 67, 8, .15));
 }
@@ -3693,134 +3717,177 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
 
 .claw-login-brand strong {
   color: #171725;
-  font-size: 18px;
-  font-weight: 800;
-  line-height: 22px;
-  letter-spacing: .07em;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 18px;
+  letter-spacing: .045em;
 }
 
 .claw-login-brand span {
   margin-top: 2px;
-  color: #686578;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 19px;
+  color: #777583;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
 }
 
 .claw-login-heading {
-  margin-top: 13px;
+  margin: 0 0 28px;
 }
 
 .claw-login-heading h1 {
-  margin: 0 0 7px;
+  margin: 0 0 8px;
   color: #171725;
-  font-size: 36px;
-  font-weight: 750;
-  line-height: 42px;
-  letter-spacing: -.04em;
+  font-size: 29px;
+  font-weight: 700;
+  line-height: 35px;
+  letter-spacing: -.02em;
 }
 
 .claw-login-heading p {
   margin: 0;
-  color: #696678;
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 23px;
+  color: #747180;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 21px;
 }
 
 .claw-login-field {
   display: grid;
-  gap: 9px;
-  color: #353342;
-  font-size: 14px;
-  font-weight: 700;
+  gap: 8px;
+  color: #292837;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.claw-login-field + .claw-login-field {
+  margin-top: 18px;
 }
 
 .claw-login-input {
-  display: flex;
-  align-items: center;
+  position: relative;
   width: 100%;
-  height: 52px;
+  height: 54px;
   min-width: 0;
-  padding: 0 14px;
-  border: 1px solid rgba(104, 99, 125, .22);
+  padding: 0;
+  border: 1px solid rgba(30, 30, 45, .10);
   border-radius: 13px;
-  background: rgba(255, 255, 255, .86);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .94), 0 5px 14px rgba(58, 49, 83, .07);
+  background: rgba(255, 255, 255, .88);
+  box-shadow: 0 3px 12px rgba(24, 23, 37, .04), inset 0 1px 0 rgba(255, 255, 255, .82);
 }
 
 .claw-login-input:focus-within {
-  border-color: #d3a900;
+  border-color: rgba(183, 151, 0, .48);
   background: #fff;
-  box-shadow: 0 0 0 4px rgba(244, 213, 0, .21), inset 0 1px 0 #fff;
+  box-shadow: 0 0 0 3px rgba(244, 213, 0, .10), inset 0 1px 0 #fff;
 }
 
 .claw-login-input > svg {
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
-  margin-right: 10px;
-  stroke: #686578;
+  position: absolute;
+  top: 50%;
+  left: 16px;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  margin: 0;
+  padding: 0;
+  fill: none;
+  stroke: #4b4958;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .claw-login-input input {
   width: 100%;
+  height: 100%;
   min-width: 0;
   border: 0;
   outline: 0;
   background: transparent;
   color: #171725;
   font: inherit;
-  font-size: 15px;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 0 14px 0 48px;
+  appearance: none;
+  -webkit-appearance: none;
+  box-shadow: none;
+}
+
+.claw-login-input input[name="password"] {
+  padding-right: 54px;
+}
+
+.claw-login-input input:focus {
+  outline: 0;
+  box-shadow: none;
+}
+
+.claw-login-input input:-webkit-autofill,
+.claw-login-input input:-webkit-autofill:hover,
+.claw-login-input input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #171725;
+  -webkit-box-shadow: 0 0 0 1000px rgba(255, 255, 255, .88) inset;
+  caret-color: #171725;
+  transition: background-color 9999s ease-out 0s;
 }
 
 .claw-login-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
   display: inline-grid;
-  flex: 0 0 34px;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   place-items: center;
-  margin-right: -6px;
+  margin: 0;
+  transform: translateY(-50%);
   border: 0;
   border-radius: 10px;
   background: transparent;
-  color: #686578;
+  color: #4b4958;
   cursor: pointer;
 }
 
 .claw-login-password-toggle:hover,
 .claw-login-password-toggle:focus-visible {
-  background: rgba(244, 213, 0, .16);
+  background: rgba(20, 20, 30, .045);
   color: #171725;
   outline: 0;
-  box-shadow: 0 0 0 3px rgba(244, 213, 0, .22);
+  box-shadow: none;
 }
 
 .claw-login-password-toggle svg {
-  width: 19px;
-  height: 19px;
+  width: 18px;
+  height: 18px;
+  fill: none;
   stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .claw-login-submit {
   width: 100%;
-  height: 52px;
-  margin-top: 6px;
+  height: 54px;
+  margin-top: 24px;
   border: 0;
   border-radius: 13px;
-  background: #171725;
+  background: #191825;
   color: #fff;
   font: inherit;
-  font-size: 15px;
-  font-weight: 750;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 12px 20px rgba(23, 23, 37, .20);
-  transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease;
+  box-shadow: 0 8px 20px rgba(24, 23, 37, .14);
+  transition: transform 170ms ease, background 170ms ease, box-shadow 170ms ease;
 }
 
 .claw-login-submit:hover:not(:disabled) {
-  background: #2a2a3d;
-  box-shadow: 0 15px 24px rgba(23, 23, 37, .25);
+  background: #22212f;
+  box-shadow: 0 10px 24px rgba(24, 23, 37, .22);
   transform: translateY(-1px);
 }
 
@@ -3829,12 +3896,17 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   outline-offset: 3px;
 }
 
+.claw-login-submit:active:not(:disabled) {
+  transform: translateY(0);
+}
+
 .claw-login-submit:disabled {
   cursor: wait;
   opacity: .72;
 }
 
 .claw-login-error {
+  margin: -12px 0 20px;
   padding: 10px 12px;
   border: 1px solid rgba(166, 49, 49, .28);
   border-radius: 11px;
