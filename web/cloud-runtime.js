@@ -55,7 +55,7 @@
     const root = document.createElement("section");
     root.id = "clawStagingSignIn";
     root.hidden = true;
-    root.innerHTML = '<div class="claw-login-stage"><form id="clawStagingSignInForm"></form></div>';
+    root.innerHTML = '<div class="claw-login-stage"><span class="claw-login-ribbon claw-login-ribbon-left" aria-hidden="true"></span><span class="claw-login-ribbon claw-login-ribbon-right" aria-hidden="true"></span><span class="claw-login-ribbon claw-login-ribbon-lower" aria-hidden="true"></span><form id="clawStagingSignInForm"></form></div>';
     const form = root.querySelector("form");
     form.className = "claw-login-card";
     form.setAttribute("novalidate", "");
