@@ -8,7 +8,8 @@
     "test:dev-contract": "node scripts/test_dev_commands_contract.mjs",
     "test:runtime-separation": "node scripts/test_runtime_separation_contract.mjs",
     "test:cloud-api-routing": "node scripts/test_cloud_api_routing_contract.mjs",
-    "test:served-cloud-runtime": "node scripts/test_served_cloud_runtime_contract.mjs"
+    "test:served-cloud-runtime": "node scripts/test_served_cloud_runtime_contract.mjs",
+    "test:desktop-updater-exclusion": "node scripts/test_desktop_updater_exclusion.mjs"
   },
   "devDependencies": {
     "@supabase/supabase-js": "2.112.4"

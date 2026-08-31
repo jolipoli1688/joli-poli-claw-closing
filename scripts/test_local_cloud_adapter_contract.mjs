@@ -31,6 +31,8 @@ await local.request("/api/runtime", { headers: { "X-Regression": "yes" } });
 assert.equal(localRequest.pathValue, "/api/runtime");
 assert.equal(localRequest.options.headers["Content-Type"], "application/json");
 assert.equal(localRequest.options.headers["X-Regression"], "yes");
+await local.request("/api/update/status");
+assert.equal(localRequest.pathValue, "/api/update/status", "LOCAL must retain its desktop updater compatibility route");
 
 let cloudRequest;
 const cloud = runAdapter({
@@ -55,6 +57,8 @@ const noToken = runAdapter({
   fetch: async () => response({ ok: true }),
 });
 await assert.rejects(() => noToken.request("/api/bootstrap"), /Sign in is required/);
+await assert.rejects(() => cloud.request("/api/update/status"), /Desktop software updates are unavailable in Cloud Staging/);
+assert.equal(cloudRequest.pathValue, "https://fbvzqdqjqcbjopuinknw.supabase.co/functions/v1/claw-api/api/bootstrap", "Cloud updater exclusion must reject before fetch");
 
 assert.throws(
   () => runAdapter({ runtimeMode: "cloud-staging", cloudConfig: { mode: "cloud-staging", projectRef: "wrong-project", publishableKey: "synthetic-publishable-key", apiBaseUrl: "https://wrong-project.supabase.co/functions/v1/claw-api", getAccessToken: async () => "session-token" }, fetch: async () => response({}) }),

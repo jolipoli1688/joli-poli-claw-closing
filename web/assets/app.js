@@ -85,6 +85,7 @@ async function api(path, options = {}) {
 }
 
 function isCloudStaging() { return window.__CLAW_CLOUD_CONFIG__?.mode === "cloud-staging"; }
+function desktopUpdaterSupported() { return !isCloudStaging(); }
 
 function money(value) { return `$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
 function number(value, digits = 0) { return Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }); }
@@ -207,6 +208,11 @@ function formatBytes(value) {
 function renderUpdateButton() {
   const button = document.getElementById("globalUpdateButton");
   if (!button) return;
+  if (!desktopUpdaterSupported()) {
+    button.hidden = true;
+    button.onclick = null;
+    return;
+  }
   const status = state.updateStatus;
   button.hidden = false;
   button.classList.toggle("available", Boolean(status?.available));
@@ -224,6 +230,10 @@ function renderUpdateButton() {
 }
 
 async function checkForUpdates(showErrors = false) {
+  if (!desktopUpdaterSupported()) {
+    state.updateStatus = { enabled: false, supported: false, available: false, configured: false, downloaded: false };
+    return state.updateStatus;
+  }
   if (state.updateChecking) return state.updateStatus;
   state.updateChecking = true;
   renderUpdateButton();
@@ -265,6 +275,7 @@ async function showUpdateConfiguration() {
 }
 
 async function openUpdateCenter() {
+  if (!desktopUpdaterSupported()) return;
   const status = await checkForUpdates(true);
   if (!status) return;
   if (!status.configured && !status.downloaded) {
@@ -325,6 +336,7 @@ function showUpdatingScreen(version) {
 }
 
 async function beginAutomaticUpdate() {
+  if (!desktopUpdaterSupported()) throw new Error("Desktop software updates are unavailable in Cloud Staging.");
   const status = state.updateStatus || await checkForUpdates(true);
   if (!status?.available) throw new Error("No newer update is available.");
   captureUpdateResume();
@@ -1705,8 +1717,10 @@ async function initialise() {
     renderUpdateButton();
     await ensureClosingPage();
     document.getElementById("loadingOverlay").remove();
-    await restoreAfterUpdate();
-    checkForUpdates(false);
+    if (desktopUpdaterSupported()) {
+      await restoreAfterUpdate();
+      checkForUpdates(false);
+    }
   } catch (error) {
     document.querySelector(".loading-card").innerHTML = `<div class="loading-mark">!</div><div><strong>Cannot open the application</strong><span>${escapeHtml(error.message)}</span></div>`;
   }

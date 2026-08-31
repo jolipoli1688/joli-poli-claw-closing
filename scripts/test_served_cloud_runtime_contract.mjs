@@ -119,16 +119,18 @@ try {
     for (const script of externalScripts) vm.runInContext(script.source, context, { filename: script.src });
     for (const listener of documentListeners.get("DOMContentLoaded") || []) listener({ type: "DOMContentLoaded" });
     await new Promise(resolve => setTimeout(resolve, 20));
-    return calls;
+    return { calls, context };
   };
 
   const beforeLogin = await execute({ authenticated: false });
-  assert.deepEqual(beforeLogin, [], "before login, the served Cloud runtime must make no business or same-origin API request");
+  assert.deepEqual(beforeLogin.calls, [], "before login, the served Cloud runtime must make no business or same-origin API request");
   const afterLogin = await execute({ authenticated: true });
-  const bootstrapCalls = afterLogin.filter(call => call.url.endsWith("/api/bootstrap"));
+  const bootstrapCalls = afterLogin.calls.filter(call => call.url.endsWith("/api/bootstrap"));
   assert.equal(bootstrapCalls.length, 1, "the served Cloud runtime must issue one intentional bootstrap after an authenticated session");
   assert.equal(bootstrapCalls[0].url, `${edgeBase}/api/bootstrap`, "Cloud bootstrap must target the approved Edge endpoint");
-  assert.ok(!afterLogin.some(call => /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?\/api\//.test(call.url) || call.url.startsWith("/api/")), "Cloud runtime must never fetch a same-origin application API");
+  await assert.rejects(() => afterLogin.context.window.clawApi.request("/api/update/status"), /Desktop software updates are unavailable in Cloud Staging/);
+  assert.equal(afterLogin.calls.filter(call => call.url.includes("/api/update")).length, 0, "the served Cloud runtime must reject updater routes before fetch");
+  assert.ok(!afterLogin.calls.some(call => /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?\/api\//.test(call.url) || call.url.startsWith("/api/")), "Cloud runtime must never fetch a same-origin application API");
 
   console.log("PASS - actual served Cloud HTML order and runtime fetch capture; zero pre-login bootstrap and one authenticated Edge bootstrap.");
 } finally {
