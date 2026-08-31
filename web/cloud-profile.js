@@ -82,12 +82,9 @@
     area.innerHTML = `<button id="clawSidebarProfileButton" class="claw-sidebar-profile-button" type="button" title="Profile" aria-label="Profile" aria-expanded="false"><span class="claw-profile-avatar" aria-hidden="true">${initial}</span><span class="claw-profile-copy"><strong>${escapeHtml(profile.username)}</strong><small>${escapeHtml(roleLabel(profile.role))}</small></span><span class="claw-profile-chevron" aria-hidden="true">⌄</span></button>`;
     area.querySelector("button").onclick = event => openMenu(event.currentTarget);
   };
-  const loadProfile = async () => {
-    const token = await config.getAccessToken();
-    if (!token) return clearProfile();
-    const response = await fetch(`${config.apiBaseUrl}/api/bootstrap`, { headers: { apikey: config.publishableKey, Authorization: `Bearer ${token}` } });
-    if (!response.ok) return clearProfile();
-    const context = (await response.json()).cloud_context || {};
+  const applyBootstrapProfile = bootstrap => {
+    const context = bootstrap?.cloud_context || {};
+    if (!context.profile) return clearProfile();
     profile = { username: context.profile?.username || "", role: context.profile?.role || "", outlets: context.stores || [] };
     window.clawCloudProfile = { username: profile.username, role: profile.role, outlets: profile.outlets.map(outlet => ({ code: outlet.code, name: outlet.name })) };
     renderProfile();
@@ -102,7 +99,8 @@
       actions.prepend(indicator);
     }
     await window.clawCloudAuth.ready;
-    if (window.clawCloudAuth.session()) await loadProfile();
+    if (!window.clawCloudAuth.session()) clearProfile();
   });
+  window.addEventListener("claw-cloud-bootstrap", event => applyBootstrapProfile(event.detail));
   window.addEventListener("claw-cloud-signed-out", clearProfile);
 })();

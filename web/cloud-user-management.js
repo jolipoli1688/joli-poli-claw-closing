@@ -6,12 +6,9 @@
   const config = window.__CLAW_CLOUD_CONFIG__;
   if (!config || config.mode !== "cloud-staging") return;
 
-  const request = async (path, options = {}) => {
-    const token = await config.getAccessToken();
-    const response = await fetch(`${config.apiBaseUrl}${path}`, { ...options, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...(options.headers || {}) } });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.detail || "Request failed.");
-    return body;
+  const request = (path, options = {}) => {
+    if (!window.clawApi || window.clawApi.mode !== "cloud") throw new Error("Cloud API routing is unavailable.");
+    return window.clawApi.request(path, options);
   };
   const esc = value => String(value ?? "").replace(/[&<>'"]/g, char => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char]);
   const label = value => String(value || "").replace(/(^|[-_\s])\w/g, part => part.slice(-1).toUpperCase());
@@ -28,7 +25,9 @@
   };
 
   const show = async () => {
-    const [users, bootstrap] = await Promise.all([request("/api/users"), request("/api/bootstrap")]);
+    const bootstrap = window.clawCloudBootstrap;
+    if (!bootstrap?.cloud_context) throw new Error("Cloud workspace context is unavailable.");
+    const users = await request("/api/users");
     const state = { users, stores: bootstrap.cloud_context?.stores || [], search: "", role: "", showInactive: false };
     const root = document.createElement("section");
     root.id = "clawDeveloperUsers";

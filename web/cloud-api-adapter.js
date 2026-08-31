@@ -18,14 +18,27 @@ window.createClawCloudAdapter = function createClawCloudAdapter(config) {
   if (endpoint.protocol !== "https:" || endpoint.hostname !== `${projectRef}.supabase.co` || !publishableKey || !getAccessToken) {
     throw new Error("Cloud adapter requires the approved staging HTTPS function URL and a session-token provider.");
   }
+  const functionPath = "/functions/v1/claw-api/api/";
+  const requestUrlFor = path => {
+    const requestedPath = String(path || "");
+    if (!requestedPath.startsWith("/api/") || requestedPath.startsWith("//") || /^[a-z][a-z0-9+.-]*:/i.test(requestedPath)) {
+      throw new Error("Cloud API routing is unavailable.");
+    }
+    const requestUrl = new URL(`${baseUrl}${requestedPath}`);
+    if (requestUrl.protocol !== "https:" || requestUrl.origin !== endpoint.origin || !requestUrl.pathname.startsWith(functionPath)) {
+      throw new Error("Cloud API routing is unavailable.");
+    }
+    return requestUrl.href;
+  };
   return {
     mode: "cloud",
     async request(path, options = {}) {
+      const requestUrl = requestUrlFor(path);
       const token = await getAccessToken();
       if (!token) throw new Error("Sign in is required.");
-      const response = await fetch(`${baseUrl}${path}`, {
+      const response = await fetch(requestUrl, {
         ...options,
-        headers: { "Content-Type": "application/json", apikey: publishableKey, Authorization: `Bearer ${token}`, ...(options.headers || {}) },
+        headers: { ...(options.headers || {}), "Content-Type": "application/json", apikey: publishableKey, Authorization: `Bearer ${token}` },
       });
       const body = await response.json().catch(() => ({}));
       if (response.status === 401 && typeof config.onSessionExpired === "function") config.onSessionExpired();

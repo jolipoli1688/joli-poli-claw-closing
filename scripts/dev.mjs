@@ -37,16 +37,35 @@ function start(selectedMode) {
     ? ["-3", "local_backend/app.py", "--server", "--port", String(port)]
     : ["scripts/Start_Cloud_Staging.py"];
   const child = spawn(command, args, { cwd: root, env, stdio: "inherit", windowsHide: false });
+  let stopping = false;
+  let forcedStopTimer = null;
+  const stopChild = (signal) => {
+    if (stopping || child.exitCode !== null) return;
+    stopping = true;
+    // This launcher only signals its own direct child. Windows has no safe
+    // Ctrl+C forwarding for this detached console arrangement, so use a
+    // bounded fallback against that child PID and its descendants only.
+    child.kill(signal);
+    if (process.platform === "win32") {
+      forcedStopTimer = setTimeout(() => {
+        if (child.exitCode === null && child.pid) {
+          spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+        }
+      }, 1500);
+      forcedStopTimer.unref();
+    }
+  };
   child.on("error", (error) => {
     console.error(`${label} was not started: ${error.message}`);
     process.exitCode = 1;
   });
   child.on("exit", (code, signal) => {
+    if (forcedStopTimer) clearTimeout(forcedStopTimer);
     if (signal) console.error(`${label} stopped by ${signal}.`);
-    process.exitCode = code ?? 1;
+    process.exitCode = stopping ? 0 : (code ?? 1);
   });
   for (const signal of ["SIGINT", "SIGTERM"]) {
-    process.on(signal, () => child.kill(signal));
+    process.once(signal, () => stopChild(signal));
   }
   console.log(`${label} starting at http://localhost:${port}/`);
 }

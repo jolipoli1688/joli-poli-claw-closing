@@ -47,6 +47,7 @@
   const signOut = async () => {
     const token = session?.access_token;
     persist(null);
+    delete window.clawCloudBootstrap;
     if (token) await fetch(`${config.supabaseUrl}/auth/v1/logout`, { method: "POST", headers: { ...authHeaders(), Authorization: `Bearer ${token}` } }).catch(() => {});
     window.dispatchEvent(new Event("claw-cloud-signed-out"));
     show(true);
@@ -109,7 +110,7 @@
     });
   };
   config.getAccessToken = async () => { await ready; const current = await refreshIfNeeded(); return current?.access_token || ""; };
-  config.onSessionExpired = () => { persist(null); window.dispatchEvent(new Event("claw-cloud-signed-out")); show(true); };
+  config.onSessionExpired = () => { persist(null); delete window.clawCloudBootstrap; window.dispatchEvent(new Event("claw-cloud-signed-out")); show(true); };
   window.clawCloudAuth = { signOut, session: () => session, ready };
   document.addEventListener("DOMContentLoaded", () => { mount(); restore(); });
 })();

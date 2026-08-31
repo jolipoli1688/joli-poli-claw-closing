@@ -21,8 +21,11 @@ const ref = "fbvzqdqjqcbjopuinknw";
 const edgeBase = `https://${ref}.supabase.co/functions/v1/claw-api`;
 assert.match(launcher, /apiBaseUrl.*functions\/v1\/claw-api/, "cloud host must inject the Edge API base URL");
 assert.match(launcher, /window\.__CLAW_RUNTIME_MODE__=\"local\"/, "cloud host must replace the base local runtime mode");
-assert.match(profileSource, /\$\{config\.apiBaseUrl\}\/api\/bootstrap/, "profile bootstrap must use the cloud API base URL");
-assert.match(usersSource, /\$\{config\.apiBaseUrl\}\$\{path\}/, "user management must use the cloud API base URL");
+assert.match(profileSource, /claw-cloud-bootstrap/, "profile must consume the application bootstrap event instead of fetching a duplicate bootstrap");
+assert.ok(!profileSource.includes("fetch(`${config.apiBaseUrl}/api/bootstrap`"), "profile must not fetch bootstrap directly");
+assert.match(usersSource, /window\.clawApi\.request/, "user management must use the common cloud adapter");
+assert.ok(!usersSource.includes("fetch(`${config.apiBaseUrl}${path}`"), "user management must not bypass the common cloud adapter");
+assert.ok(!usersSource.includes('request("/api/bootstrap")'), "user management must reuse the authenticated startup context instead of issuing a duplicate bootstrap");
 for (const route of ["/api/bootstrap", "/api/settings", "/api/machines", "/api/closings", "/api/history", "/api/refills", "/api/reports", "/api/users"]) {
   assert.ok(edgeSource.includes(route), `Edge API must implement ${route}`);
 }
@@ -58,6 +61,9 @@ for (const call of calls) {
   assert.ok(!call.url.startsWith("http://localhost:3001/api/"), `cloud request must not reach the static host: ${call.url}`);
   assert.equal(call.options.headers.Authorization, "Bearer synthetic-session", "cloud request must use the authenticated session");
   assert.equal(call.options.headers.apikey, "synthetic-publishable-key", "cloud request must use only the browser-safe publishable key");
+}
+for (const unsafePath of ["/api", "http://localhost:3001/api/bootstrap", "http://127.0.0.1:3001/api/bootstrap", "//localhost:3001/api/bootstrap"]) {
+  await assert.rejects(() => context.window.clawApi.request(unsafePath), /Cloud API routing is unavailable/);
 }
 
 const localCalls = [];

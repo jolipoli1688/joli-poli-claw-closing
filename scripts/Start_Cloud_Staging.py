@@ -15,10 +15,11 @@ WEB = ROOT / "web"
 REF = "fbvzqdqjqcbjopuinknw"
 RUNTIME_MODE = "cloud-staging"
 CLOUD_SCRIPTS = (
-    '<script src="./cloud-runtime.js"></script>'
-    '<script src="./cloud-profile.js"></script>'
-    '<script src="./cloud-api-adapter.js"></script>'
-    '<script src="./cloud-user-management.js"></script>'
+    '<script src="./cloud-runtime.js?v=2.1.78-cloud-runtime-2"></script>'
+    '<script src="./cloud-api-adapter.js?v=2.1.78-cloud-routing-3"></script>'
+    '<script src="./claw-api.js?v=2.1.78-cloud-runtime-2"></script>'
+    '<script src="./cloud-profile.js?v=2.1.78-cloud-runtime-2"></script>'
+    '<script src="./cloud-user-management.js?v=2.1.78-cloud-runtime-2"></script>'
 )
 
 
@@ -47,11 +48,14 @@ class Handler(SimpleHTTPRequestHandler):
         config = {"mode": RUNTIME_MODE, "projectRef": REF, "supabaseUrl": url, "publishableKey": key, "apiBaseUrl": f"{url}/functions/v1/claw-api"}
         html = (WEB / "index.html").read_text(encoding="utf-8")
         html = html.replace("Loading the Excel database\u2026", "Loading your workspace\u2026")
-        html = html.replace('window.__CLAW_RUNTIME_MODE__="local";', f"window.__CLAW_RUNTIME_MODE__={json.dumps(RUNTIME_MODE)};")
-        html = html.replace("</head>", f"<script>window.__CLAW_CLOUD_CONFIG__={json.dumps(config, separators=(',', ':'))};</script></head>")
+        cloud_bootstrap = (
+            f'window.__CLAW_RUNTIME_MODE__={json.dumps(RUNTIME_MODE)};'
+            f'</script><script>window.__CLAW_CLOUD_CONFIG__={json.dumps(config, separators=(",", ":"))};'
+        )
+        html = html.replace('window.__CLAW_RUNTIME_MODE__="local";', cloud_bootstrap)
         if 'window.__CLAW_RUNTIME_MODE__="cloud-staging";' not in html:
             raise RuntimeError("Cloud runtime mode was not injected.")
-        html = html.replace('<script src="./claw-api.js?v=2.1.78-local-uat-1"></script>', f"{CLOUD_SCRIPTS}<script src=\"./claw-api.js?v=2.1.78-local-uat-1\"></script>")
+        html = html.replace('<script src="./claw-api.js?v=2.1.78-local-uat-1"></script>', CLOUD_SCRIPTS)
         if "cloud-api-adapter.js" not in html:
             raise RuntimeError("Cloud runtime scripts were not injected.")
         body = html.encode("utf-8")

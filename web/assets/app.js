@@ -1692,6 +1692,10 @@ function showConfirm(title, message, onConfirm) { showModal(title, `<p style="ma
 async function initialise() {
   try {
     state.bootstrap = await api("/api/bootstrap");
+    if (isCloudStaging()) {
+      window.clawCloudBootstrap = state.bootstrap;
+      window.dispatchEvent(new CustomEvent("claw-cloud-bootstrap", { detail: state.bootstrap }));
+    }
     state.appSettings = state.bootstrap.settings || {};
     state.machines = state.bootstrap.machines || [];
     document.getElementById("versionText").textContent = `Version ${state.bootstrap.app.version}`;
@@ -1708,7 +1712,13 @@ async function initialise() {
   }
 }
 
-document.addEventListener("DOMContentLoaded", initialise);
+document.addEventListener("DOMContentLoaded", async () => {
+  if (isCloudStaging()) {
+    await window.clawCloudAuth?.ready;
+    if (!window.clawCloudAuth?.session()) return;
+  }
+  await initialise();
+});
 
 
 // WebView2 can occasionally ignore wheel input when the pointer is above a wide table.
