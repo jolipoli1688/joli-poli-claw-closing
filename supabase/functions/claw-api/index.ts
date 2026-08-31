@@ -225,16 +225,22 @@ async function recordRefill(ctx: Context, body: any) {
   if (machineEntries.error) throw new Error(machineEntries.error.message);
   const machineEntryIds = (machineEntries.data || []).map((entry: any) => entry.id);
   if (!machineEntryIds.length) throw new Error("The selected product is not in this closing.");
-  const product = await ctx.admin.from("closing_product_entries").select("id,begin_qty,refill_qty,final_qty").eq("machine_style_id", styleId).in("closing_machine_entry_id", machineEntryIds).maybeSingle();
+  const product = await ctx.admin.from("closing_product_entries").select("id,begin_qty,final_qty").eq("machine_style_id", styleId).in("closing_machine_entry_id", machineEntryIds).maybeSingle();
   if (product.error || !product.data) throw new Error("The selected product is not in this closing.");
 
-  const nextRefillQty = integer(product.data.refill_qty) + quantity;
+  // The event ledger is authoritative.  Do not trust a stale aggregate left by
+  // an older draft-save implementation that did not persist its event history.
+  const existingEvents = await ctx.admin.from("refill_events").select("delta_qty").eq("closing_product_entry_id", product.data.id).is("voided_at", null);
+  if (existingEvents.error) throw new Error(existingEvents.error.message);
+  const nextRefillQty = (existingEvents.data || []).reduce((sum: number, event: any) => sum + integer(event.delta_qty), 0) + quantity;
   const availableQty = integer(product.data.begin_qty) + nextRefillQty;
   if (availableQty < 0) throw new Error("This adjustment would make available stock negative.");
   const created = await ctx.admin.from("refill_events").insert({ closing_product_entry_id: product.data.id, delta_qty: quantity, created_by: ctx.userId, created_by_name_snapshot: adjustedBy }).select("*").single();
   if (created.error) throw new Error(created.error.message);
   const productUpdate = await ctx.admin.from("closing_product_entries").update({ refill_qty: nextRefillQty, qty_used: availableQty - integer(product.data.final_qty), updated_at: new Date().toISOString() }).eq("id", product.data.id);
   if (productUpdate.error) {
+    // This is a failed, never-returned create rather than a user-requested
+    // void; remove the compensating orphan so the event ledger stays atomic.
     await ctx.admin.from("refill_events").delete().eq("id", created.data.id);
     throw new Error(productUpdate.error.message);
   }
@@ -293,7 +299,16 @@ async function serve(req: Request) {
     if (path === "/api/settings/unlock" && req.method === "POST") return configurationManager(ctx) ? json({ ok: true }) : fail("Developer or Admin role required.", 403);
     if (path === "/api/closings/save" && req.method === "POST") return json(await saveClosing(ctx, body));
     if (path === "/api/refills" && req.method === "POST") return json(await recordRefill(ctx, body));
-    if (path.startsWith("/api/refills/") && path.endsWith("/void") && req.method === "POST") { const refillId = path.split("/")[3]; const result = await ctx.user.rpc("void_refill_event", { target_refill: refillId, reason: String(body.reason || "") }); if (result.error) throw new Error(result.error.message); return json({ ok: true, refill: result.data }); }
+    if (path.startsWith("/api/refills/") && path.endsWith("/void") && req.method === "POST") {
+      const refillId = path.split("/")[3];
+      const result = await ctx.user.rpc("void_refill_event", { target_refill: refillId, reason: String(body.reason || "") });
+      if (result.error) throw new Error(result.error.message);
+      const product = await ctx.admin.from("closing_product_entries").select("id,refill_qty,qty_used").eq("id", result.data.closing_product_entry_id).single();
+      if (product.error) throw new Error(product.error.message);
+      const events = await ctx.admin.from("refill_events").select("*").eq("closing_product_entry_id", product.data.id).is("voided_at", null).order("created_at");
+      if (events.error) throw new Error(events.error.message);
+      return json({ ok: true, refill: result.data, product: { refill_qty: integer(product.data.refill_qty), qty_used: integer(product.data.qty_used), refill_history: refillHistory(events.data || []) } });
+    }
     if (path === "/api/closings" && req.method === "GET") { const { data, error } = await ctx.admin.from("daily_closings").select("*").eq("store_id", ctx.store.id).order("report_date", { ascending: false }).limit(Math.min(integer(url.searchParams.get("limit")) || 500, 5000)); if (error) throw new Error(error.message); return json((data || []).map(header)); }
     if (path === "/api/reports/summary" && req.method === "GET") { const rows = await monthlyClosings(ctx, url.searchParams.get("month") || ""); return json({ closings: rows.length, total_sales: rows.reduce((sum: number, row: any) => sum + num(row.total_sales_usd), 0), coins: rows.reduce((sum: number, row: any) => sum + integer(row.machine_coins_used), 0), prizes: rows.reduce((sum: number, row: any) => sum + integer(row.total_products), 0), outlet: ctx.store.name }); }
     if (path === "/api/reports/monthly" && req.method === "POST") { const rows = await monthlyClosings(ctx, String(body.month || "")); const lines: unknown[][] = [["JOLI POLI Claw Monthly Report", ctx.store.name, body.month], [], ["Report Date", "Closing ID", "Workflow", "Total Sales", "Coins Played", "Prizes Won", "Coin Variance", "Closed By", "Verified By"]]; for (const row of rows) { const value = header(row); lines.push([value.Report_Date, value.Closing_ID, value.Workflow_Status, value.Total_Sales, value.Machine_Coins_Used, value.Total_Prizes_Won, value.Coin_Variance, value.Closed_By, value.Verified_By]); } lines.push([], ["Totals", rows.length, "", rows.reduce((sum: number, row: any) => sum + num(row.total_sales_usd), 0), rows.reduce((sum: number, row: any) => sum + integer(row.machine_coins_used), 0), rows.reduce((sum: number, row: any) => sum + integer(row.total_products), 0)]); return json(download(`JOLI_POLI_Claw_Monthly_${ctx.store.code}_${body.month}.csv`, lines)); }
