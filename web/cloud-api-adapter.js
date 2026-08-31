@@ -22,7 +22,7 @@ window.createClawCloudAdapter = function createClawCloudAdapter(config) {
   const requestUrlFor = path => {
     const requestedPath = String(path || "");
     if (requestedPath === "/api/update" || requestedPath.startsWith("/api/update/")) {
-      throw new Error("Desktop software updates are unavailable in Cloud Staging.");
+      throw new Error("Desktop software updates are unavailable in this browser workspace.");
     }
     if (!requestedPath.startsWith("/api/") || requestedPath.startsWith("//") || /^[a-z][a-z0-9+.-]*:/i.test(requestedPath)) {
       throw new Error("Cloud API routing is unavailable.");

@@ -128,7 +128,7 @@ try {
   const bootstrapCalls = afterLogin.calls.filter(call => call.url.endsWith("/api/bootstrap"));
   assert.equal(bootstrapCalls.length, 1, "the served Cloud runtime must issue one intentional bootstrap after an authenticated session");
   assert.equal(bootstrapCalls[0].url, `${edgeBase}/api/bootstrap`, "Cloud bootstrap must target the approved Edge endpoint");
-  await assert.rejects(() => afterLogin.context.window.clawApi.request("/api/update/status"), /Desktop software updates are unavailable in Cloud Staging/);
+  await assert.rejects(() => afterLogin.context.window.clawApi.request("/api/update/status"), /Desktop software updates are unavailable in this browser workspace/);
   assert.equal(afterLogin.calls.filter(call => call.url.includes("/api/update")).length, 0, "the served Cloud runtime must reject updater routes before fetch");
   assert.ok(!afterLogin.calls.some(call => /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?\/api\//.test(call.url) || call.url.startsWith("/api/")), "Cloud runtime must never fetch a same-origin application API");
 

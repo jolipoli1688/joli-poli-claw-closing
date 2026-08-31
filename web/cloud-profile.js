@@ -38,7 +38,7 @@
     if (!profile) return;
     const root = document.createElement("section");
     root.id = "clawProfileDialog";
-    root.innerHTML = `<div class="claw-profile-dialog-backdrop"><div class="claw-profile-dialog" role="dialog" aria-modal="true" aria-labelledby="clawProfileDialogTitle"><header><div><h2 id="clawProfileDialogTitle">My Profile</h2><p>Your cloud staging account details.</p></div><button type="button" class="claw-icon-button" aria-label="Close profile">×</button></header><dl><div><dt>Username</dt><dd>${escapeHtml(profile.username)}</dd></div><div><dt>Role</dt><dd>${escapeHtml(roleLabel(profile.role))}</dd></div><div><dt>Outlet Access</dt><dd>${escapeHtml(outletLabel(profile))}</dd></div></dl><footer><button type="button" class="btn btn-secondary">Close</button></footer></div></div>`;
+    root.innerHTML = `<div class="claw-profile-dialog-backdrop"><div class="claw-profile-dialog" role="dialog" aria-modal="true" aria-labelledby="clawProfileDialogTitle"><header><div><h2 id="clawProfileDialogTitle">My Profile</h2><p>Your account details.</p></div><button type="button" class="claw-icon-button" aria-label="Close profile">×</button></header><dl><div><dt>Username</dt><dd>${escapeHtml(profile.username)}</dd></div><div><dt>Role</dt><dd>${escapeHtml(roleLabel(profile.role))}</dd></div><div><dt>Outlet Access</dt><dd>${escapeHtml(outletLabel(profile))}</dd></div></dl><footer><button type="button" class="btn btn-secondary">Close</button></footer></div></div>`;
     const close = () => root.remove();
     root.querySelectorAll("button").forEach(button => { button.onclick = close; });
     root.querySelector(".claw-profile-dialog-backdrop").addEventListener("click", event => { if (event.target === event.currentTarget) close(); });
@@ -90,14 +90,6 @@
     renderProfile();
   };
   document.addEventListener("DOMContentLoaded", async () => {
-    const actions = document.querySelector(".topbar-actions");
-    if (actions && !document.getElementById("clawStagingIndicator")) {
-      const indicator = document.createElement("span");
-      indicator.id = "clawStagingIndicator";
-      indicator.className = "claw-staging-indicator";
-      indicator.textContent = "STAGING";
-      actions.prepend(indicator);
-    }
     await window.clawCloudAuth.ready;
     if (!window.clawCloudAuth.session()) clearProfile();
   });

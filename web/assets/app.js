@@ -336,7 +336,7 @@ function showUpdatingScreen(version) {
 }
 
 async function beginAutomaticUpdate() {
-  if (!desktopUpdaterSupported()) throw new Error("Desktop software updates are unavailable in Cloud Staging.");
+  if (!desktopUpdaterSupported()) throw new Error("Desktop software updates are unavailable in this browser workspace.");
   const status = state.updateStatus || await checkForUpdates(true);
   if (!status?.available) throw new Error("No newer update is available.");
   captureUpdateResume();
@@ -912,7 +912,7 @@ function updateBulkSelectionUi() {
 
   table.classList.toggle("bulk-mode", state.bulkMode);
   toggle.classList.toggle("active", state.bulkMode);
-  toggle.innerHTML = `${icon("mouse-pointer", 15)} ${state.bulkMode ? "Selecting" : "Multi-select"}`;
+  toggle.innerHTML = `${icon("eraser", 15)} Clear Selection`;
   bar.hidden = !state.bulkMode;
 
   document.querySelectorAll(".bulk-cell").forEach(cell => {
@@ -2833,10 +2833,12 @@ saveClosing = async function(status) {
     state.closingReview = status === "Finalized" ? true : state.closingReview;
     renderClosing();
     toast(status === "Finalized" ? "Closing finalized" : "Draft saved", status === "Finalized" ? `${result.closing_id} was finalized successfully.` : `${result.closing_id} was saved. Report Date is now locked.`);
+    return true;
   } catch (error) {
     toast("Cannot save closing", error.message, "error");
     const button = status === "Finalized" ? document.getElementById("finalizeBtn") : document.getElementById("saveDraftBtn");
     if (button) button.disabled = false;
+    return false;
   }
 };
 
@@ -3723,7 +3725,7 @@ const confirmFinalizeV2161BeforeValidation=confirmFinalize;confirmFinalize=funct
 const renderClosingV2161BeforeUx=renderClosing;renderClosing=function(){renderClosingV2161BeforeUx();document.querySelectorAll('#page-closing .review-check-card').forEach(card=>card.remove());if(state.closing&&!state.closingReview){enhanceOutletControlV2162();enhanceRequiredFieldsV2162();recalculateClosing();}};
 const openClosingV2161BeforePendingRestore=openClosing;openClosing=async function(closingId){await openClosingV2161BeforePendingRestore(closingId);try{const data=await api('/api/closings/'+encodeURIComponent(closingId));const byMachine=new Map();(data.products||[]).forEach(row=>{const key=String(row.Machine_ID||'');if(!byMachine.has(key))byMachine.set(key,[]);byMachine.get(key).push(row);});(state.closing?.machines||[]).forEach(machine=>{const rows=byMachine.get(String(machine.machine_id||''))||[];ensureClosingProducts(machine).forEach(product=>{const raw=rows.find(row=>String(row.Product_ID||'').toLowerCase()===String(product.product_id||'').toLowerCase())||rows.find(row=>String(row.Barcode||'').toLowerCase()===String(product.barcode||'').toLowerCase());if(!raw)return;if(raw.Final_Qty===null||raw.Final_Qty===undefined||String(raw.Final_Qty).trim()==='')product.final_qty='';});});}catch(_error){}renderClosing();};
 showRefillProductModalV2144=function(machineIndex,productIndex){const machine=state.closing?.machines?.[Number(machineIndex)];const product=machine?ensureClosingProducts(machine)[Number(productIndex)]:null;if(!machine||!product)return;if(state.closingReadOnly||state.closingReview){showRefillHistory(Number(machineIndex),Number(productIndex));return;}const history=refillHistoryFor(product);const total=refillTotal(product);const machineLabel=machineDisplayLabel(machine,state.closing?.machines||[]);const body='<div class="refill-cell-product-head">'+productThumbnail(product,'small')+'<div class="refill-cell-product-copy"><strong>'+escapeHtml(product.barcode||('Product '+(Number(productIndex)+1)))+'</strong><span>'+escapeHtml(machineLabel)+' · Begin Qty '+number(product.begin_qty)+' · Current refill +'+number(total)+'</span></div></div><div class="refill-cell-add-card"><div><strong>Add refill</strong><span>Add only the physical quantity placed into this product now.</span></div><input id="refillCellQtyV2144" class="input refill-cell-qty" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" value="" placeholder="0" aria-label="Add refill quantity"></div><div class="refill-cell-history-section"><div class="refill-cell-history-head"><strong>Refill history</strong><span>'+history.length+' event'+(history.length===1?'':'s')+' · Total +'+number(total)+'</span></div><div class="refill-cell-history-list">'+refillHistoryRowsV2144(product)+'</div></div>';showModal('Refill · '+machineLabel,body,'Save Refill',async()=>{const quantityInput=document.getElementById('refillCellQtyV2144');const raw=String(quantityInput?.value||'').replace(/[^0-9]/g,'');const qty=Number(raw);if(!Number.isInteger(qty)||qty<=0)throw new Error('Enter a refill quantity greater than 0.');const staff=String(state.closing?.closed_by||'').trim();if(!staff)throw new Error('Closed By is required before saving a refill.');const oldQty=product.refill_qty;const oldHistory=refillHistoryFor(product).slice();const nextHistory=oldHistory.slice();nextHistory.push({qty:qty,at:new Date().toISOString(),by:staff});product.refill_history=nextHistory;product.refill_qty=nextHistory.reduce((sum,event)=>sum+Math.max(0,numeric(event.qty)),0);try{const result=await api('/api/closings/save',{method:'POST',body:JSON.stringify(closingPayload('Draft'))});state.closingId=result.closing_id;state.closingStatus=result.workflow_status;closeModal();renderClosing();toast('Refill recorded',machineLabel+' · '+(product.barcode||'Product')+' · +'+number(qty)+' added.');}catch(error){product.refill_qty=oldQty;product.refill_history=oldHistory;throw error;}});document.querySelector('#modalRoot .modal')?.classList.add('refill-cell-modal');const quantityInput=document.getElementById('refillCellQtyV2144');if(quantityInput){quantityInput.addEventListener('input',()=>{quantityInput.value=quantityInput.value.replace(/[^0-9]/g,'');});quantityInput.addEventListener('keydown',event=>{if(['-','+','e','E','.',','].includes(event.key))event.preventDefault();});setTimeout(()=>quantityInput.focus(),0);}};
-document.addEventListener('wheel',event=>{const modal=event.target?.closest?.('.modal');if(!modal)return;let node=event.target;let scrollable=null;while(node&&node!==modal.parentElement){if(node.matches?.('.modal-body, .refill-cell-history-list, .product-editor-cards')&&node.scrollHeight>node.clientHeight+1){scrollable=node;break;}node=node.parentElement;}if(scrollable&&Math.abs(event.deltaY)>Math.abs(event.deltaX))scrollable.scrollTop+=event.deltaY;event.preventDefault();event.stopImmediatePropagation();},{capture:true,passive:false});
+document.addEventListener('wheel',event=>{const modal=event.target?.closest?.('.modal');if(!modal)return;let node=event.target;let scrollable=null;while(node&&node!==modal.parentElement){if(node.matches?.('.modal-body, .refill-cell-history-list, .product-editor-cards')&&node.scrollHeight>node.clientHeight+1){scrollable=node;break;}node=node.parentElement;}if(scrollable&&Math.abs(event.deltaY)>Math.abs(event.deltaX)){scrollable.scrollTop+=event.deltaY;event.preventDefault();event.stopImmediatePropagation();}},{capture:true,passive:false});
 printClosingPdf=async function(){const button=document.getElementById('globalPrintButton');if(!state.closing||!state.closingReview||!button)return;try{button.disabled=true;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));window.print();}catch(error){toast('Cannot open print dialog',error.message||'Printing is not available on this computer.','error');}finally{button.disabled=false;}};
 
 
@@ -3802,7 +3804,11 @@ handleBulkPointerDown = function(event) {
     return;
   }
 
-  // Do not prevent the default action here. This keeps ordinary single-click editing natural.
+  // Normal clicks select the active cell without blocking ordinary field editing.
+  state.bulkSelection.clear();
+  state.bulkSelection.add(key);
+  state.bulkAnchor = key;
+  state.bulkMode = true;
   state.bulkPendingAnchorV2165 = key;
 };
 
@@ -3829,14 +3835,8 @@ endBulkDrag = function() {
   state.bulkDragMovedV2165 = false;
   state.bulkPendingAnchorV2165 = null;
 
-  if (!moved && !modified) {
-    // A plain click means edit the field, not enter a persistent bulk mode.
-    state.bulkMode = false;
-    state.bulkSelection.clear();
-    state.bulkAnchor = startKey || state.bulkAnchor;
-  } else {
-    state.bulkMode = true;
-  }
+  state.bulkMode = true;
+  state.bulkAnchor = startKey || state.bulkAnchor;
   updateBulkSelectionUi();
 };
 
@@ -4559,3 +4559,57 @@ function normalizeOutsidePrintFlowV2173(host){
 }
 const buildOutsideScreenPrintV2172BaseV2173=buildOutsideScreenPrintV2172;
 buildOutsideScreenPrintV2172=function(){return normalizeOutsidePrintFlowV2173(buildOutsideScreenPrintV2172BaseV2173());};
+
+/* v2.1.78 operational shifts: server-authoritative opening and draft reload. */
+function renderStartShiftStateV2178() {
+  const page = document.getElementById("page-closing");
+  if (!page) return;
+  page.innerHTML = `<section class="card start-shift-card"><div><span class="eyebrow">Daily Closing</span><h2>Ready to start a shift?</h2><p>Start Shift opens today’s authorized outlet with carried-forward Begin Qty values. No shift is created until you save a draft or record an adjustment.</p></div><button id="startShiftButtonV2178" class="btn btn-primary" type="button">${icon("play", 16)} Start Shift</button></section>`;
+  document.getElementById("startShiftButtonV2178").onclick = () => newClosing();
+}
+
+newClosing = async function() {
+  const data = await api(`/api/new-closing?report_date=${isoToday()}`);
+  if (data.existing_closing_id) return openClosing(data.existing_closing_id);
+  state.closingId = null;
+  state.closingStatus = "Draft";
+  state.closingReadOnly = false;
+  state.closingReview = false;
+  state.closing = { report_date: dateDisplay(data.report_date), outlet: data.outlet, closed_by: "", verified_by: "", notes: "", sales: defaultSales(), machines: data.machines };
+  if (state.page !== "closing") await navigate("closing"); else renderClosing();
+};
+
+ensureClosingPage = async function() {
+  if (state.closing) renderClosing();
+  else renderStartShiftStateV2178();
+};
+
+const saveClosingV2178AuthoritativeReload = saveClosing;
+saveClosing = async function(status) {
+  const saved = await saveClosingV2178AuthoritativeReload(status);
+  if (saved && state.closingId) await openClosing(state.closingId);
+  return saved;
+};
+
+const renderClosingV2178OperationalLock = renderClosing;
+renderClosing = function() {
+  renderClosingV2178OperationalLock();
+  if (!state.closing || state.closingReadOnly) return;
+  document.querySelectorAll('#page-closing .product-qty-input[data-field="begin_qty"]').forEach(input => {
+    input.readOnly = true;
+    input.setAttribute("aria-readonly", "true");
+    input.title = "Begin Qty is carried forward from the most recent closed shift.";
+  });
+  const outletInput = document.getElementById("field-outlet");
+  if (outletInput) {
+    outletInput.readOnly = true;
+    outletInput.closest(".outlet-edit-shell")?.querySelector(".outlet-edit-button")?.remove();
+  }
+};
+
+const setupBulkSelectionV2178AlwaysAvailable = setupBulkSelection;
+setupBulkSelection = function(page) {
+  setupBulkSelectionV2178AlwaysAvailable(page);
+  const clear = document.getElementById("bulkSelectToggle");
+  if (clear) clear.onclick = () => setBulkMode(false);
+};

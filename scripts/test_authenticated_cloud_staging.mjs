@@ -53,14 +53,69 @@ async function expectStatus(promise, expected, label) {
 }
 
 const runSuffix = crypto.randomBytes(5).toString("hex");
-const fixtureYear = 3000 + (Number.parseInt(runSuffix.slice(0, 4), 16) % 6000);
+const fixtureStart = new Date();
+fixtureStart.setUTCDate(fixtureStart.getUTCDate() + 365);
+const fixtureDate = offset => {
+  const value = new Date(fixtureStart);
+  value.setUTCDate(value.getUTCDate() + offset);
+  return value.toISOString().slice(0, 10);
+};
 const users = {
   admin: { username: `STG Admin UAT ${runSuffix}`, role: "admin", outlets: [] },
   outletA: { username: `STG Outlet A UAT ${runSuffix}`, role: "outlet", outlets: ["STG-A"] },
   outletB: { username: `STG Outlet B UAT ${runSuffix}`, role: "outlet", outlets: ["STG-B"] },
 };
 for (const user of Object.values(users)) user.password = password();
+const createdUserIds = [];
+const createdMachineIds = [];
+const createdClosingIds = [];
+const createdRefillEventIds = [];
+const createdStoragePaths = [];
+let reportExports = [];
 
+async function removeFixtureData() {
+  const failures = [];
+  const attempt = async (label, action) => { try { await action(); } catch (error) { failures.push(`${label}: ${error instanceof Error ? error.message : String(error)}`); } };
+  await attempt("synthetic Storage objects", async () => {
+    if (!createdStoragePaths.length) return;
+    const { error } = await service.storage.from("machine-style-images").remove(createdStoragePaths);
+    if (error) throw error;
+  });
+  await attempt("synthetic closings and refill events", async () => {
+    if (!createdClosingIds.length) return;
+    const { error } = await service.from("daily_closings").delete().in("id", createdClosingIds);
+    if (error) throw error;
+  });
+  await attempt("synthetic machines and styles", async () => {
+    if (!createdMachineIds.length) return;
+    const { error } = await service.from("machines").delete().in("id", createdMachineIds);
+    if (error) throw error;
+  });
+  await attempt("synthetic audit records", async () => {
+    const entityIds = [...new Set([...createdUserIds, ...createdMachineIds, ...createdClosingIds, ...createdRefillEventIds])];
+    if (createdUserIds.length) {
+      const { error } = await service.from("audit_log").delete().in("actor_user_id", createdUserIds);
+      if (error) throw error;
+    }
+    if (entityIds.length) {
+      const { error } = await service.from("audit_log").delete().in("entity_id", entityIds);
+      if (error) throw error;
+    }
+  });
+  for (const userId of createdUserIds) await attempt(`synthetic Auth user ${userId}`, async () => {
+    const { error } = await service.auth.admin.deleteUser(userId);
+    if (error) throw error;
+  });
+  await attempt("synthetic user/profile cleanup verification", async () => {
+    if (!createdUserIds.length) return;
+    const { data, error } = await service.from("profiles").select("id").in("id", createdUserIds);
+    if (error) throw error;
+    assert.equal((data || []).length, 0, "temporary profiles and outlet access must cascade away with temporary Auth users");
+  });
+  if (failures.length) throw new Error(`Authenticated UAT cleanup failed: ${failures.join(" | ")}`);
+}
+
+try {
 let developer = await login(process.env.STG_DEVELOPER_USERNAME, process.env.STG_DEVELOPER_PASSWORD);
 const developerBootstrap = await expectStatus(api(developer.access_token, "/api/bootstrap"), 200, "Developer bootstrap");
 assert.equal(developerBootstrap.cloud_context.profile.role, "developer", "Developer profile role");
@@ -71,9 +126,10 @@ developer = await login(process.env.STG_DEVELOPER_USERNAME, process.env.STG_DEVE
 
 for (const user of Object.values(users)) {
   const result = await expectStatus(api(developer.access_token, "/api/users", { method: "POST", body: { username: user.username, temporary_password: user.password, role: user.role, outlets: user.outlets, status: "active" } }), 201, `${user.role} creation through Developer API`);
+  user.id = result.id;
+  createdUserIds.push(result.id);
   assert.equal(result.username, normalize(user.username), "username must be normalized");
   assert.equal(result.role, user.role, "created role");
-  user.id = result.id;
 }
 
 const listed = await expectStatus(api(developer.access_token, "/api/users"), 200, "Developer user list");
@@ -126,10 +182,20 @@ const afterDirectWrite = await expectStatus(api(developer.access_token, "/api/us
 assert.equal(afterDirectWrite.find(row => row.id === users.admin.id).role, "admin", "Admin cannot promote itself to Developer");
 await expectStatus(unauthenticated("/api/bootstrap"), 401, "unauthenticated protected API denial");
 
+const machineType = developerBootstrap.settings.machine_types?.[0]?.name;
+assert.ok(machineType, "synthetic staging machine type is required for closing UAT");
+const meterMachine = await expectStatus(api(developer.access_token, "/api/machines", { method: "POST", body: { machine_code: `STG-UAT-METER-${runSuffix}`, machine_name: "STG UAT Meter", machine_type: machineType, products: [{ barcode: `STG-UAT-A-${runSuffix}`, product_name: "STG UAT Product A", starting_qty: 10 }, { barcode: `STG-UAT-B-${runSuffix}`, product_name: "STG UAT Product B", starting_qty: 4 }] } }), 200, "synthetic meter machine creation");
+createdMachineIds.push(meterMachine.machine.Machine_ID);
+const manualMachine = await expectStatus(api(developer.access_token, "/api/machines", { method: "POST", body: { machine_code: `STG-UAT-MANUAL-${runSuffix}`, machine_name: "STG UAT Manual", machine_type: machineType, products: [{ barcode: `STG-UAT-C-${runSuffix}`, product_name: "STG UAT Product C", starting_qty: 2 }] } }), 200, "synthetic manual machine creation");
+createdMachineIds.push(manualMachine.machine.Machine_ID);
+const meterProducts = meterMachine.machine.Products;
+const manualProducts = manualMachine.machine.Products;
+
 const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9J6Z4AAAAASUVORK5CYII=";
-const styleId = developerBootstrap.machines?.[0]?.Products?.[0]?.product_id;
-assert.ok(styleId, "synthetic STG-A machine style is required for image UAT");
+const styleId = meterProducts[0]?.product_id;
+assert.ok(styleId, "dedicated synthetic machine style is required for image UAT");
 const firstImage = await expectStatus(api(developer.access_token, "/api/images/replace", { method: "POST", body: { machine_style_id: styleId, content_type: "image/png", image_base64: png } }), 200, "synthetic image upload");
+createdStoragePaths.push(firstImage.image_path);
 assert.ok(firstImage.image_path && firstImage.image_url, "private image upload must return its signed read URL");
 assert.ok((await fetch(firstImage.image_url)).ok, "signed private image read");
 const imagePrefix = firstImage.image_path.slice(0, firstImage.image_path.lastIndexOf("/"));
@@ -145,6 +211,7 @@ assert.ifError(styleAfterFault.error);
 assert.equal(styleAfterFault.data.image_path, firstImage.image_path, "failed image persistence must preserve the old database reference");
 assert.ok(!(await service.storage.from("machine-style-images").download(firstImage.image_path)).error, "failed image persistence must preserve the old object");
 const secondImage = await expectStatus(api(developer.access_token, "/api/images/replace", { method: "POST", body: { machine_style_id: styleId, content_type: "image/png", image_base64: png } }), 200, "synthetic image replacement");
+createdStoragePaths.push(secondImage.image_path);
 assert.notEqual(secondImage.image_path, firstImage.image_path, "replacement must create a new object");
 const previousObject = await service.storage.from("machine-style-images").download(firstImage.image_path);
 assert.ok(previousObject.error, "successful replacement must clean the old object");
@@ -155,15 +222,8 @@ assert.ok(outletImageWrite.status >= 400, "Outlet A cannot change another outlet
 await expectStatus(api(developer.access_token, "/api/images/remove", { method: "POST", body: { machine_style_id: styleId } }), 200, "synthetic image removal");
 const removedObject = await service.storage.from("machine-style-images").download(secondImage.image_path);
 assert.ok(removedObject.error, "removed image object must not survive");
-
-const machineType = developerBootstrap.settings.machine_types?.[0]?.name;
-assert.ok(machineType, "synthetic staging machine type is required for closing UAT");
-const meterMachine = await expectStatus(api(developer.access_token, "/api/machines", { method: "POST", body: { machine_code: `STG-UAT-METER-${runSuffix}`, machine_name: "STG UAT Meter", machine_type: machineType, products: [{ barcode: `STG-UAT-A-${runSuffix}`, product_name: "STG UAT Product A", starting_qty: 10 }, { barcode: `STG-UAT-B-${runSuffix}`, product_name: "STG UAT Product B", starting_qty: 4 }] } }), 200, "synthetic meter machine creation");
-const manualMachine = await expectStatus(api(developer.access_token, "/api/machines", { method: "POST", body: { machine_code: `STG-UAT-MANUAL-${runSuffix}`, machine_name: "STG UAT Manual", machine_type: machineType, products: [{ barcode: `STG-UAT-C-${runSuffix}`, product_name: "STG UAT Product C", starting_qty: 2 }] } }), 200, "synthetic manual machine creation");
-const meterProducts = meterMachine.machine.Products;
-const manualProducts = manualMachine.machine.Products;
 const closingPayload = {
-  report_date: `${fixtureYear}-01-15`,
+  report_date: fixtureDate(2),
   closed_by: "STG UAT Closer",
   verified_by: "STG UAT Verifier",
   notes: "Synthetic authenticated cloud parity fixture.",
@@ -175,8 +235,9 @@ const closingPayload = {
 };
 const calculation = await expectStatus(api(developer.access_token, "/api/calculate", { method: "POST", body: closingPayload }), 200, "cloud calculation");
 assert.deepEqual({ sales: calculation.summary.total_sales, coins: calculation.summary.coins_dispensed, used: calculation.summary.machine_coins_used, variance: calculation.summary.coin_variance }, { sales: 15, coins: 60, used: 60, variance: 0 }, "cloud calculation parity");
-const refillOnlyPayload = { ...closingPayload, report_date: `${fixtureYear}-01-14`, closed_by: "", verified_by: "" };
+const refillOnlyPayload = { ...closingPayload, report_date: fixtureDate(1), closed_by: "", verified_by: "" };
 const refillPlus = await expectStatus(api(developer.access_token, "/api/refills", { method: "POST", body: { closing_payload: refillOnlyPayload, machine_style_id: meterProducts[0].product_id, adjusted_by: "STG Refill Operator", delta_qty: 7 } }), 200, "positive refill without Closed By");
+createdClosingIds.push(refillPlus.closing_id);
 assert.equal(refillPlus.product.refill_qty, 10, "positive refill must update the cumulative total");
 assert.equal(refillPlus.product.qty_used, 12, "positive refill must update Qty Used");
 assert.ok(refillPlus.product.refill_history.some(event => event.qty === 7 && event.by === "STG Refill Operator"), "positive refill must retain Adjusted By in history");
@@ -190,6 +251,7 @@ assert.ok(reloadedRefillProduct.Refill_History_JSON.some(event => event.qty === 
 assert.ok(reloadedRefillProduct.Refill_History_JSON.some(event => event.qty === -7 && event.by === "STG Refill Operator"), "negative refill must be immediately readable without a page reload");
 const negativeRefillEvent = reloadedRefillProduct.Refill_History_JSON.find(event => event.qty === -7 && event.by === "STG Refill Operator");
 assert.ok(negativeRefillEvent?.id, "refill history must expose the immutable event id needed for voiding");
+createdRefillEventIds.push(negativeRefillEvent.id);
 const crossStoreVoid = await api(outletB.access_token, `/api/refills/${negativeRefillEvent.id}/void`, { method: "POST", body: { reason: "cross-store denial test" } });
 assert.equal(crossStoreVoid.status, 400, "Outlet B cannot void a Store A refill event");
 const voidedRefill = await expectStatus(api(developer.access_token, `/api/refills/${negativeRefillEvent.id}/void`, { method: "POST", body: { reason: "Synthetic UAT correction" } }), 200, "authorized refill void");
@@ -206,12 +268,14 @@ const missingCloserFinalize = await api(developer.access_token, "/api/closings/s
 assert.equal(missingCloserFinalize.status, 400, "finalization must still require Closed By");
 assert.match(missingCloserFinalize.body.detail || "", /Closed By is required/i, "finalization must retain the relevant Closed By error");
 const draft = await expectStatus(api(developer.access_token, "/api/closings/save", { method: "POST", body: { ...closingPayload, workflow_status: "Draft" } }), 200, "cloud draft save");
+createdClosingIds.push(draft.closing_id);
 const reloadedDraft = await expectStatus(api(developer.access_token, `/api/closings/${draft.closing_id}`), 200, "cloud draft reload");
 assert.equal(reloadedDraft.products.length, 3, "cloud draft must retain all product rows");
 const edited = await expectStatus(api(developer.access_token, "/api/closings/save", { method: "POST", body: { ...closingPayload, closing_id: draft.closing_id, notes: "Synthetic cloud parity fixture (edited).", workflow_status: "Draft" } }), 200, "cloud draft edit");
 assert.equal(edited.closing_id, draft.closing_id, "cloud draft edit must retain the closing ID");
-const unbalancedPayload = { ...closingPayload, report_date: `${fixtureYear}-01-16`, sales: { ...closingPayload.sales, final_coins: 1 } };
+const unbalancedPayload = { ...closingPayload, report_date: fixtureDate(3), sales: { ...closingPayload.sales, final_coins: 1 } };
 const unbalancedDraft = await expectStatus(api(developer.access_token, "/api/closings/save", { method: "POST", body: { ...unbalancedPayload, workflow_status: "Draft" } }), 200, "unbalanced draft save");
+createdClosingIds.push(unbalancedDraft.closing_id);
 const unbalancedFinalize = await api(developer.access_token, "/api/closings/save", { method: "POST", body: { ...unbalancedPayload, closing_id: unbalancedDraft.closing_id, workflow_status: "Finalized" } });
 assert.equal(unbalancedFinalize.status, 400, "unbalanced finalization must be rejected server-side");
 assert.match(unbalancedFinalize.body.detail || "", /coin variance is zero/i, "unbalanced finalization must return a useful error");
@@ -227,16 +291,27 @@ const rejectedEdit = await api(developer.access_token, "/api/closings/save", { m
 assert.ok(rejectedEdit.status >= 400, "finalized closing must be immutable");
 const history = await expectStatus(api(developer.access_token, "/api/history"), 200, "cloud history");
 assert.ok(history.records.some(row => row.Closing_ID === draft.closing_id), "finalized closing must appear in history");
-const carryForward = await expectStatus(api(developer.access_token, `/api/new-closing?report_date=${fixtureYear}-02-01`), 200, "cloud carry-forward");
+const carryForward = await expectStatus(api(developer.access_token, `/api/new-closing?report_date=${fixtureDate(4)}`), 200, "cloud carry-forward");
 const carriedMeter = carryForward.machines.find(machine => machine.machine_id === meterMachine.machine.Machine_ID);
 assert.equal(carriedMeter.products.find(product => product.product_id === meterProducts[0].product_id).begin_qty, 8, "cloud carry-forward must use prior Final Qty");
 const reportDaily = await expectStatus(api(developer.access_token, `/api/reports/daily/${draft.closing_id}`, { method: "POST" }), 200, "daily report export");
-const reportMonthly = await expectStatus(api(developer.access_token, "/api/reports/monthly", { method: "POST", body: { month: `${fixtureYear}-01` } }), 200, "monthly report export");
+const reportMonthly = await expectStatus(api(developer.access_token, "/api/reports/monthly", { method: "POST", body: { month: fixtureDate(2).slice(0, 7) } }), 200, "monthly report export");
+reportExports = [reportDaily.filename, reportMonthly.filename];
 for (const report of [reportDaily, reportMonthly]) assert.ok(report.filename && report.content_base64 && report.path.startsWith("cloud-download:"), "authenticated report must return a download payload");
 assert.match(Buffer.from(reportDaily.content_base64, "base64").toString("utf8"), /STG UAT Meter/, "daily export must include machine detail");
 assert.match(Buffer.from(reportDaily.content_base64, "base64").toString("utf8"), /15/, "daily export must include final KPI values");
 assert.match(Buffer.from(reportMonthly.content_base64, "base64").toString("utf8"), /Totals/, "monthly export must include totals");
 const outletBReport = await api(outletB.access_token, `/api/reports/daily/${draft.closing_id}`, { method: "POST" });
 assert.equal(outletBReport.status, 400, "Outlet B cannot export a Store A closing");
+const voidedClosing = await expectStatus(api(developer.access_token, `/api/closings/${draft.closing_id}`, { method: "DELETE", body: { reason: "Synthetic UAT closing void" } }), 200, "authorized closing void");
+assert.equal(voidedClosing.voided_closing_id, draft.closing_id, "closing void must identify the voided closing");
+const historyAfterVoid = await expectStatus(api(developer.access_token, "/api/history"), 200, "history reload after closing void");
+assert.ok(!historyAfterVoid.records.some(row => row.Closing_ID === draft.closing_id), "voided closing must disappear from normal history immediately");
+const openingAfterVoid = await expectStatus(api(developer.access_token, `/api/new-closing?report_date=${fixtureDate(4)}`), 200, "opening after closing void");
+const voidExcludedMeter = openingAfterVoid.machines.find(machine => machine.machine_id === meterMachine.machine.Machine_ID);
+assert.equal(voidExcludedMeter.products.find(product => product.product_id === meterProducts[0].product_id).begin_qty, 10, "voided closing must not seed carry-forward quantities");
 
-console.log(JSON.stringify({ ok: true, report_exports: [reportDaily.filename, reportMonthly.filename], checks: ["Developer login/session restore-refresh-logout-login", "Developer User Management create/list/normalization/audit/edit/outlet reassignment", "Admin and Outlet role isolation", "last active Developer protection", "unauthenticated and direct-write denial", "private image upload/read/replace/fault-cleanup/remove", "cloud draft/reload/edit/finalization/history/carry-forward", "balanced and unbalanced calculation parity", "authenticated daily/monthly report exports"] }));
+} finally {
+  await removeFixtureData();
+}
+console.log(JSON.stringify({ ok: true, report_exports: reportExports, checks: ["Developer login/session restore-refresh-logout-login", "Developer User Management create/list/normalization/audit/edit/outlet reassignment", "Admin and Outlet role isolation", "last active Developer protection", "unauthenticated and direct-write denial", "private image upload/read/replace/fault-cleanup/remove", "cloud draft/reload/edit/finalization/history/carry-forward", "balanced and unbalanced calculation parity", "authenticated daily/monthly report exports", "self-cleaning temporary users/machines/closings"] }));

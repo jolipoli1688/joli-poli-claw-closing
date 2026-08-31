@@ -57,7 +57,7 @@ const noToken = runAdapter({
   fetch: async () => response({ ok: true }),
 });
 await assert.rejects(() => noToken.request("/api/bootstrap"), /Sign in is required/);
-await assert.rejects(() => cloud.request("/api/update/status"), /Desktop software updates are unavailable in Cloud Staging/);
+await assert.rejects(() => cloud.request("/api/update/status"), /Desktop software updates are unavailable in this browser workspace/);
 assert.equal(cloudRequest.pathValue, "https://fbvzqdqjqcbjopuinknw.supabase.co/functions/v1/claw-api/api/bootstrap", "Cloud updater exclusion must reject before fetch");
 
 assert.throws(
