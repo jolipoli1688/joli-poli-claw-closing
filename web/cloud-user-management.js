@@ -4,7 +4,7 @@
 // authenticated /api/users surface and never renders technical Auth emails.
 (() => {
   const config = window.__CLAW_CLOUD_CONFIG__;
-  if (!config || config.mode !== "cloud") return;
+  if (!config || config.mode !== "cloud-staging") return;
 
   const request = async (path, options = {}) => {
     const token = await config.getAccessToken();

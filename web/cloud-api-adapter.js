@@ -3,6 +3,7 @@
 // CLOUD transport deliberately accepts only a browser session token supplied
 // by the staging host. It never contains elevated Supabase credentials.
 window.createClawCloudAdapter = function createClawCloudAdapter(config) {
+  if (config?.mode !== "cloud-staging") throw new Error("Cloud adapter requires the cloud-staging runtime mode.");
   const baseUrl = String(config?.apiBaseUrl || "").replace(/\/$/, "");
   const projectRef = String(config?.projectRef || "");
   const getAccessToken = typeof config?.getAccessToken === "function" ? config.getAccessToken : null;
@@ -27,7 +28,7 @@ window.createClawCloudAdapter = function createClawCloudAdapter(config) {
       });
       const body = await response.json().catch(() => ({}));
       if (response.status === 401 && typeof config.onSessionExpired === "function") config.onSessionExpired();
-      if (!response.ok) throw new Error(body.detail || body.error || `Request failed (${response.status})`);
+      if (!response.ok) throw new Error(body.detail || body.error || "Cloud workspace is unavailable. Please try again.");
       return body;
     },
   };

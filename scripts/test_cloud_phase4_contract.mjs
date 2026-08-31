@@ -78,7 +78,8 @@ assert.match(profile, /aria-expanded/, "profile row must expose its menu state")
 assert.match(profile, /event\.key !== "Escape"/, "profile menu must close on Escape");
 assert.match(profile, /classList\.add\("is-open"\)/, "profile row must show selected/open state");
 assert.ok(!profile.includes("@claw.internal"), "profile surface must not expose technical Auth email");
-assert.match(index, /cloud-profile\.js/, "cloud profile surface must be loaded with the cloud runtime");
+assert.ok(!index.includes("cloud-profile.js"), "LOCAL HTML must not load cloud account code");
+assert.match(launcher, /cloud-profile\.js/, "cloud launcher must load the cloud profile surface");
 assert.match(styles, /#clawSidebarProfile/, "cloud profile surface must use the sidebar");
 assert.match(styles, /claw-staging-indicator/, "STAGING must be a separate header indicator");
 assert.match(styles, /claw-sidebar-profile-button\.is-open/, "profile selected state must be styled");
@@ -95,6 +96,7 @@ assert.match(edge, /created_by_name_snapshot: adjustedBy/, "Edge refill must per
 assert.match(edge, /apply_developer_user_profile/, "Developer-managed users must use the transactional profile/access RPC");
 assert.match(edge, /auth\.admin\.deleteUser/, "failed user setup must compensate by removing the new Auth identity");
 assert.match(launcher, /CLAW_SUPABASE_PUBLISHABLE_KEY/, "launcher must inject only runtime configuration");
+assert.match(launcher, /cloud-staging/, "cloud launcher must declare the canonical cloud runtime mode");
 assert.match(launcher, /\("localhost", 3001\)/, "cloud host must use localhost:3001");
 assert.match(launcher, /Cache-Control", "no-store"/, "cloud launcher must not retain stale runtime assets");
 assert.ok(!runtime.includes("SERVICE_ROLE"), "browser runtime must not contain a service-role key");

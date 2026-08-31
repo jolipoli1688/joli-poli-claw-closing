@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "node scripts/dev.mjs local",
     "dev:cloud": "node scripts/dev.mjs cloud",
-    "test:dev-contract": "node scripts/test_dev_commands_contract.mjs"
+    "test:dev-contract": "node scripts/test_dev_commands_contract.mjs",
+    "test:runtime-separation": "node scripts/test_runtime_separation_contract.mjs"
   },
   "devDependencies": {
     "@supabase/supabase-js": "2.112.4"

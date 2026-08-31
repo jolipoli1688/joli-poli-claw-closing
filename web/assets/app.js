@@ -84,6 +84,8 @@ async function api(path, options = {}) {
   return window.clawApi.request(path, options);
 }
 
+function isCloudStaging() { return window.__CLAW_CLOUD_CONFIG__?.mode === "cloud-staging"; }
+
 function money(value) { return `$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
 function number(value, digits = 0) { return Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }); }
 function isoToday() { return new Date().toISOString().slice(0, 10); }
@@ -4290,7 +4292,7 @@ showRefillProductModalV2144 = function(machineIndex, productIndex) {
     if (available < 0) throw new Error('This adjustment would make available stock negative.');
 
     try {
-      const cloudRefill = window.__CLAW_CLOUD_CONFIG__?.mode === 'cloud';
+      const cloudRefill = isCloudStaging();
       if (cloudRefill) {
         const result = await api('/api/refills', {
           method: 'POST',

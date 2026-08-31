@@ -1,8 +1,7 @@
 """Serve the accepted UI in CLOUD staging mode without changing LOCAL mode.
 
-Set CLAW_SUPABASE_URL and CLAW_SUPABASE_PUBLISHABLE_KEY in the invoking shell.
-Only browser-safe configuration is injected into the response; no values are
-written to disk and this launcher never starts the local Excel backend.
+The canonical cloud command injects only browser-safe configuration. No values
+are written to disk and this launcher never starts or imports the local backend.
 """
 from __future__ import annotations
 
@@ -14,6 +13,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
 REF = "fbvzqdqjqcbjopuinknw"
+RUNTIME_MODE = "cloud-staging"
+CLOUD_SCRIPTS = (
+    '<script src="./cloud-runtime.js"></script>'
+    '<script src="./cloud-profile.js"></script>'
+    '<script src="./cloud-api-adapter.js"></script>'
+    '<script src="./cloud-user-management.js"></script>'
+)
+
+
+def cloud_configuration_error() -> bytes:
+    return b"<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>JOLI POLI Claw Closing</title></head><body><main><h1>Opening Claw Closing</h1><p>Cloud configuration is unavailable.</p></main></body></html>"
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -25,12 +35,22 @@ class Handler(SimpleHTTPRequestHandler):
             return super().do_GET()
         url = os.environ.get("CLAW_SUPABASE_URL", "").rstrip("/")
         key = os.environ.get("CLAW_SUPABASE_PUBLISHABLE_KEY", "")
-        if not url or not key or url != f"https://{REF}.supabase.co":
-            self.send_error(500, "Set CLAW_SUPABASE_URL and CLAW_SUPABASE_PUBLISHABLE_KEY for the approved staging project.")
+        if os.environ.get("CLAW_RUNTIME_MODE") != RUNTIME_MODE or not url or not key or url != f"https://{REF}.supabase.co":
+            body = cloud_configuration_error()
+            self.send_response(503)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
             return
-        config = {"mode": "cloud", "projectRef": REF, "supabaseUrl": url, "publishableKey": key, "apiBaseUrl": f"{url}/functions/v1/claw-api"}
+        config = {"mode": RUNTIME_MODE, "projectRef": REF, "supabaseUrl": url, "publishableKey": key, "apiBaseUrl": f"{url}/functions/v1/claw-api"}
         html = (WEB / "index.html").read_text(encoding="utf-8")
+        html = html.replace("Loading the Excel database\u2026", "Loading your workspace\u2026")
         html = html.replace("</head>", f"<script>window.__CLAW_CLOUD_CONFIG__={json.dumps(config, separators=(',', ':'))};</script></head>")
+        html = html.replace('<script src="./claw-api.js?v=2.1.78-local-uat-1"></script>', f"{CLOUD_SCRIPTS}<script src=\"./claw-api.js?v=2.1.78-local-uat-1\"></script>")
+        if "cloud-api-adapter.js" not in html:
+            raise RuntimeError("Cloud runtime scripts were not injected.")
         body = html.encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")

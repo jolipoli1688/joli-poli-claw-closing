@@ -4,7 +4,7 @@
 // browser-safe runtime configuration before this script for CLOUD staging.
 (() => {
   const config = window.__CLAW_CLOUD_CONFIG__;
-  if (!config || config.mode !== "cloud") return;
+  if (!config || config.mode !== "cloud-staging") return;
 
   const storageKey = `joli-poli-claw:${config.projectRef}:session`;
   let session = null;

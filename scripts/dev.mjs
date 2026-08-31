@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const stagingRef = "fbvzqdqjqcbjopuinknw";
+const LOCAL_RUNTIME_MODE = "local";
+const CLOUD_RUNTIME_MODE = "cloud-staging";
 const mode = process.argv[2];
 
 if (!new Set(["local", "cloud"]).has(mode)) {
@@ -51,6 +53,7 @@ function start(selectedMode) {
 
 function localEnvironment() {
   const env = safeEnvironment();
+  env.CLAW_RUNTIME_MODE = LOCAL_RUNTIME_MODE;
   env.CLAW_LOCAL_DATA_MODE = "uat";
   env.CLAW_LOCAL_DATA_DIR = path.join(root, "local_data", "uat");
   return env;
@@ -66,6 +69,7 @@ function cloudEnvironment() {
   const values = parseBrowserConfig(readFileSync(configPath, "utf8"));
   if (!values) return null;
   const env = safeEnvironment();
+  env.CLAW_RUNTIME_MODE = CLOUD_RUNTIME_MODE;
   env.CLAW_SUPABASE_URL = `https://${stagingRef}.supabase.co`;
   env.CLAW_SUPABASE_PUBLISHABLE_KEY = values.CLAW_SUPABASE_PUBLISHABLE_KEY;
   return env;
@@ -101,7 +105,15 @@ function parseBrowserConfig(source) {
 
 function safeEnvironment() {
   const env = { ...process.env };
-  for (const key of ["SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY", "CLAW_SUPABASE_URL", "CLAW_SUPABASE_PUBLISHABLE_KEY"]) delete env[key];
+  for (const key of [
+    "CLAW_RUNTIME_MODE",
+    "CLAW_LOCAL_DATA_MODE",
+    "CLAW_LOCAL_DATA_DIR",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_SECRET_KEY",
+    "CLAW_SUPABASE_URL",
+    "CLAW_SUPABASE_PUBLISHABLE_KEY",
+  ]) delete env[key];
   return env;
 }
 

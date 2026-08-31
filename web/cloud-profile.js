@@ -4,7 +4,7 @@
 // Edge API; this component only renders the authenticated profile context.
 (() => {
   const config = window.__CLAW_CLOUD_CONFIG__;
-  if (!config || config.mode !== "cloud") return;
+  if (!config || config.mode !== "cloud-staging") return;
 
   let profile = null;
   let menu = null;

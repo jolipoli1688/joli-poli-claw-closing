@@ -14,7 +14,7 @@ const response = (body, ok = true) => ({ ok, status: ok ? 200 : 400, json: async
 const runAdapter = ({ cloudConfig, fetch }) => {
   const context = { window: { __CLAW_CLOUD_CONFIG__: cloudConfig }, fetch, console, URL };
   vm.createContext(context);
-  if (cloudConfig?.mode === "cloud") vm.runInContext(cloudSource, context);
+  if (cloudConfig?.mode === "cloud-staging") vm.runInContext(cloudSource, context);
   vm.runInContext(clawSource, context);
   return context.window.clawApi;
 };
@@ -34,7 +34,7 @@ assert.equal(localRequest.options.headers["X-Regression"], "yes");
 
 let cloudRequest;
 const cloud = runAdapter({
-  cloudConfig: { mode: "cloud", projectRef: "fbvzqdqjqcbjopuinknw", apiBaseUrl: "https://fbvzqdqjqcbjopuinknw.supabase.co/functions/v1/claw-api/", getAccessToken: async () => "session-token" },
+  cloudConfig: { mode: "cloud-staging", projectRef: "fbvzqdqjqcbjopuinknw", apiBaseUrl: "https://fbvzqdqjqcbjopuinknw.supabase.co/functions/v1/claw-api/", getAccessToken: async () => "session-token" },
   fetch: async (pathValue, options) => {
     cloudRequest = { pathValue, options };
     return response({ ok: true });
@@ -48,14 +48,19 @@ assert.equal(cloudRequest.options.headers["Content-Type"], "application/json");
 assert.equal(cloudRequest.options.headers["X-Regression"], "yes");
 
 const noToken = runAdapter({
-  cloudConfig: { mode: "cloud", projectRef: "fbvzqdqjqcbjopuinknw", apiBaseUrl: "https://fbvzqdqjqcbjopuinknw.supabase.co/functions/v1/claw-api", getAccessToken: async () => "" },
+  cloudConfig: { mode: "cloud-staging", projectRef: "fbvzqdqjqcbjopuinknw", apiBaseUrl: "https://fbvzqdqjqcbjopuinknw.supabase.co/functions/v1/claw-api", getAccessToken: async () => "" },
   fetch: async () => response({ ok: true }),
 });
 await assert.rejects(() => noToken.request("/api/bootstrap"), /Sign in is required/);
 
 assert.throws(
-  () => runAdapter({ cloudConfig: { mode: "cloud", projectRef: "wrong-project", apiBaseUrl: "https://wrong-project.supabase.co/functions/v1/claw-api", getAccessToken: async () => "session-token" }, fetch: async () => response({}) }),
+  () => runAdapter({ cloudConfig: { mode: "cloud-staging", projectRef: "wrong-project", apiBaseUrl: "https://wrong-project.supabase.co/functions/v1/claw-api", getAccessToken: async () => "session-token" }, fetch: async () => response({}) }),
   /restricted to the approved JOLI POLI staging project/,
+);
+
+assert.throws(
+  () => runAdapter({ cloudConfig: { mode: "cloud", projectRef: "fbvzqdqjqcbjopuinknw" }, fetch: async () => response({}) }),
+  /runtime mode is invalid/,
 );
 
 console.log("PASS - local/cloud adapter contract; no network access attempted.");

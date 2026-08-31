@@ -100,9 +100,11 @@ try {
   const expectedDirectory = path.relative(projectRoot, runDirectory).split(path.sep).join("/");
   const runtimeEnvironment = {
     ...process.env,
+    CLAW_RUNTIME_MODE: "local",
     CLAW_LOCAL_DATA_MODE: "test",
     CLAW_LOCAL_DATA_DIR: runDirectory,
   };
+  for (const key of ["CLAW_SUPABASE_URL", "CLAW_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY"]) delete runtimeEnvironment[key];
 
   console.log(`Starting fresh isolated regression fixture: ${expectedDirectory}`);
   console.log(`Regression backend: ${baseUrl}`);

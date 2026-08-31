@@ -1,10 +1,15 @@
 "use strict";
 
-// Browser-to-local-backend transport seam. Keep all legacy UI calls behind
-// this adapter; the local FastAPI server owns the v2.1.78 business behavior.
+// The host selects one transport before this file loads. LOCAL is always the
+// same-origin FastAPI backend; CLOUD STAGING is always the authenticated Edge
+// API. There is intentionally no runtime fallback between them.
 (() => {
   const cloudConfig = window.__CLAW_CLOUD_CONFIG__;
-  if (cloudConfig?.mode === "cloud") {
+  if (window.clawApi) throw new Error("A Claw API adapter is already active.");
+  if (cloudConfig !== undefined) {
+    if (cloudConfig?.mode !== "cloud-staging") {
+      throw new Error("The Claw runtime mode is invalid.");
+    }
     if (typeof window.createClawCloudAdapter !== "function") {
       throw new Error("Cloud transport was selected but the cloud adapter was not loaded.");
     }

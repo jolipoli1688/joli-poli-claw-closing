@@ -3,8 +3,13 @@ setlocal
 
 set "PROJECT_ROOT=%~dp0.."
 set "PARITY_PORT=4173"
+set "CLAW_RUNTIME_MODE=local"
 set "CLAW_LOCAL_DATA_MODE=uat"
 set "CLAW_LOCAL_DATA_DIR=%PROJECT_ROOT%\local_data\uat"
+set "CLAW_SUPABASE_URL="
+set "CLAW_SUPABASE_PUBLISHABLE_KEY="
+set "SUPABASE_SERVICE_ROLE_KEY="
+set "SUPABASE_SECRET_KEY="
 
 if not exist "%PROJECT_ROOT%\local_backend\app.py" (
   echo ERROR: Local backend was not found at "%PROJECT_ROOT%\local_backend\app.py".
