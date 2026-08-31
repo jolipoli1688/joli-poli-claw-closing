@@ -3580,7 +3580,7 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   }
 }
 
-/* Cloud staging sign-in: premium white-glass refinement of the Figma-derived composition. */
+/* Cloud sign-in: premium white minimal composition. */
 #clawStagingSignIn > .claw-login-stage {
   position: fixed;
   inset: 0;
@@ -3590,8 +3590,8 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   overflow: hidden;
   padding: 32px;
   background:
-    radial-gradient(circle at 18% 12%, rgba(244, 213, 0, .04), transparent 34%),
-    linear-gradient(135deg, #fff 0%, #fafaf8 45%, #f7f7f4 100%);
+    radial-gradient(circle at 50% 0, rgba(244, 213, 0, .025), transparent 38%),
+    linear-gradient(135deg, #fff 0%, #fafaf9 48%, #f6f6f4 100%);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -3600,84 +3600,26 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   box-sizing: border-box;
 }
 
-.claw-login-art {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.claw-login-art-rear {
-  z-index: 0;
-}
-
-.claw-login-art-front {
-  z-index: 2;
-}
-
-.claw-login-shape {
-  position: absolute;
-  display: block;
-  pointer-events: none;
-  opacity: .58;
-  filter: sepia(.78) saturate(2.15) hue-rotate(350deg) brightness(1.08) contrast(.96) drop-shadow(0 14px 24px rgba(130, 95, 0, .12));
-}
-
-.claw-login-shape-top-arc { top: -74px; left: calc(50% - 422px); width: 190px; }
-.claw-login-shape-upper-left { top: 288px; left: calc(50% - 600px); width: 250px; }
-.claw-login-shape-mid-left { top: 440px; left: calc(50% - 590px); width: 142px; }
-.claw-login-shape-bottom-left-loop { top: auto; bottom: -125px; left: calc(50% - 555px); width: 340px; }
-.claw-login-shape-top-right-loop { top: 78px; left: calc(50% + 270px); width: 430px; }
-.claw-login-shape-bottom-left-crop { bottom: -78px; left: calc(50% - 525px); width: 210px; }
-.claw-login-shape-right-waves { top: auto; bottom: -48px; left: calc(50% + 365px); width: 152px; }
-.claw-login-shape-bottom-right-crop { right: -115px; bottom: -130px; width: 420px; }
-
-.claw-login-shape-top-arc,
-.claw-login-shape-right-waves {
-  opacity: .48;
-}
-
 .claw-login-card {
   position: relative;
   z-index: 1;
-  width: min(680px, calc(100vw - 48px));
-  height: 520px;
-  min-height: 520px;
+  width: min(620px, calc(100vw - 40px));
+  min-height: 500px;
+  padding: 52px 64px;
   overflow: hidden;
-  border: 1px solid rgba(17, 24, 39, .08);
-  border-radius: 30px;
-  background: rgba(255, 255, 255, .72);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .80), 0 30px 80px rgba(17, 24, 39, .12);
-  backdrop-filter: blur(28px) saturate(125%);
-  -webkit-backdrop-filter: blur(28px) saturate(125%);
+  border: 1px solid rgba(17, 24, 39, .09);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, .94);
+  box-shadow: 0 32px 80px rgba(17, 24, 39, .10), 0 12px 30px rgba(17, 24, 39, .06), inset 0 1px 0 rgba(255, 255, 255, .90);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
   color: #111827;
   font: inherit;
 }
 
-.claw-login-environment {
-  position: absolute;
-  z-index: 2;
-  top: 20px;
-  right: 22px;
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  padding: 0 9px;
-  border: 1px solid rgba(180, 145, 0, .28);
-  border-radius: 999px;
-  background: rgba(244, 213, 0, .10);
-  color: #7a6400;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: .08em;
-}
-
 .claw-login-form-stack {
-  position: absolute;
-  z-index: 1;
-  top: 42px;
-  left: 90px;
-  width: 500px;
-  transform: none;
+  width: min(100%, 480px);
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -3686,17 +3628,19 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
 
 .claw-login-brand {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  margin: 0 0 24px;
+  gap: 10px;
+  margin: 0 0 28px;
+  text-align: center;
 }
 
 .claw-login-logo {
-  width: 50px;
-  height: 50px;
-  border-radius: 14px;
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
   object-fit: cover;
-  filter: drop-shadow(0 8px 14px rgba(87, 67, 8, .15));
+  filter: drop-shadow(0 7px 14px rgba(87, 67, 8, .12));
 }
 
 .claw-login-brand strong,
@@ -3709,19 +3653,25 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   font-size: 16px;
   font-weight: 700;
   line-height: 18px;
-  letter-spacing: .045em;
+  letter-spacing: .04em;
 }
 
 .claw-login-brand span {
-  margin-top: 2px;
-  color: #6b7280;
+  margin-top: 1px;
+  color: #707785;
   font-size: 13px;
   font-weight: 500;
   line-height: 16px;
 }
 
+.claw-login-brand > div {
+  display: grid;
+  gap: 1px;
+}
+
 .claw-login-heading {
-  margin: 0 0 28px;
+  margin: 0 0 30px;
+  text-align: center;
 }
 
 .claw-login-heading h1 {
@@ -3751,31 +3701,32 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
 }
 
 .claw-login-field + .claw-login-field {
-  margin-top: 18px;
+  margin-top: 20px;
 }
 
 .claw-login-input {
   position: relative;
   width: 100%;
-  height: 54px;
+  height: 56px;
   min-width: 0;
   padding: 0;
   border: 1px solid #e5e7eb;
   border-radius: 14px;
-  background: rgba(255, 255, 255, .96);
-  box-shadow: 0 3px 10px rgba(17, 24, 39, .04);
+  background: #fff;
+  box-shadow: inset 0 1px 2px rgba(17, 24, 39, .02), 0 3px 10px rgba(17, 24, 39, .035);
   transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
 
 .claw-login-input:hover {
   border-color: #d1d5db;
   background: #fff;
+  box-shadow: 0 4px 12px rgba(17, 24, 39, .045);
 }
 
 .claw-login-input:focus-within {
-  border-color: rgba(196, 160, 0, .65);
+  border-color: rgba(190, 158, 0, .55);
   background: #fff;
-  box-shadow: 0 0 0 3px rgba(244, 213, 0, .12);
+  box-shadow: 0 0 0 3px rgba(244, 213, 0, .10), 0 4px 14px rgba(17, 24, 39, .04);
 }
 
 .claw-login-input > svg {
@@ -3834,13 +3785,13 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   top: 50%;
   right: 8px;
   display: inline-grid;
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   place-items: center;
   margin: 0;
   transform: translateY(-50%);
   border: 0;
-  border-radius: 9px;
+  border-radius: 10px;
   background: transparent;
   color: #6b7280;
   cursor: pointer;
@@ -3866,8 +3817,8 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
 
 .claw-login-submit {
   width: 100%;
-  height: 54px;
-  margin-top: 24px;
+  height: 56px;
+  margin-top: 26px;
   border: 0;
   border-radius: 14px;
   background: #111827;
@@ -3876,7 +3827,7 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 8px 20px rgba(17, 24, 39, .16);
+  box-shadow: 0 10px 24px rgba(17, 24, 39, .16);
   transition: transform 170ms ease, background 170ms ease, box-shadow 170ms ease;
 }
 
@@ -3914,18 +3865,8 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
 
 @media (max-width: 1200px) {
   .claw-login-card {
-    width: min(680px, calc(100vw - 40px));
-    min-height: 520px;
-  }
-
-  .claw-login-form-stack {
-    left: clamp(48px, 9vw, 95px);
-  }
-
-  .claw-login-art-rear,
-  .claw-login-art-front {
-    transform: scale(.82);
-    transform-origin: center;
+    width: min(620px, calc(100vw - 48px));
+    min-height: 500px;
   }
 }
 
@@ -3941,37 +3882,10 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
     height: auto;
     min-height: 0;
     margin: auto 0;
-    padding: 54px 28px 28px;
+    padding: 32px 24px;
     border-radius: 28px;
   }
 
-  .claw-login-form-stack {
-    position: relative;
-    top: auto;
-    right: auto;
-    left: auto;
-    width: 100%;
-  }
-
-  .claw-login-art-rear,
-  .claw-login-art-front {
-    transform: none;
-  }
-
-  .claw-login-shape {
-    display: none;
-  }
-
-  .claw-login-shape-top-arc,
-  .claw-login-shape-upper-left,
-  .claw-login-shape-right-waves {
-    display: block;
-    opacity: .28;
-  }
-
-  .claw-login-shape-top-arc { top: -72px; left: 12%; width: 160px; }
-  .claw-login-shape-upper-left { top: 32%; left: -80px; width: 190px; }
-  .claw-login-shape-right-waves { top: auto; right: -36px; bottom: 7%; left: auto; width: 132px; }
 }
 
 @media (max-width: 460px) {
@@ -3980,7 +3894,7 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   }
 
   .claw-login-card {
-    padding: 52px 24px 28px;
+    padding: 32px 24px;
     border-radius: 24px;
   }
 
