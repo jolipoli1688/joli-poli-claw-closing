@@ -11,8 +11,8 @@ const cloudSource = await readFile(path.join(projectRoot, "web", "cloud-api-adap
 const clawSource = await readFile(path.join(projectRoot, "web", "claw-api.js"), "utf8");
 
 const response = (body, ok = true) => ({ ok, status: ok ? 200 : 400, json: async () => body });
-const runAdapter = ({ cloudConfig, fetch }) => {
-  const context = { window: { __CLAW_CLOUD_CONFIG__: cloudConfig }, fetch, console, URL };
+const runAdapter = ({ runtimeMode = "local", cloudConfig, fetch }) => {
+  const context = { window: { __CLAW_RUNTIME_MODE__: runtimeMode, __CLAW_CLOUD_CONFIG__: cloudConfig }, fetch, console, URL };
   vm.createContext(context);
   if (cloudConfig?.mode === "cloud-staging") vm.runInContext(cloudSource, context);
   vm.runInContext(clawSource, context);
@@ -34,7 +34,8 @@ assert.equal(localRequest.options.headers["X-Regression"], "yes");
 
 let cloudRequest;
 const cloud = runAdapter({
-  cloudConfig: { mode: "cloud-staging", projectRef: "fbvzqdqjqcbjopuinknw", apiBaseUrl: "https://fbvzqdqjqcbjopuinknw.supabase.co/functions/v1/claw-api/", getAccessToken: async () => "session-token" },
+  runtimeMode: "cloud-staging",
+  cloudConfig: { mode: "cloud-staging", projectRef: "fbvzqdqjqcbjopuinknw", publishableKey: "synthetic-publishable-key", apiBaseUrl: "https://fbvzqdqjqcbjopuinknw.supabase.co/functions/v1/claw-api/", getAccessToken: async () => "session-token" },
   fetch: async (pathValue, options) => {
     cloudRequest = { pathValue, options };
     return response({ ok: true });
@@ -44,23 +45,25 @@ assert.equal(cloud.mode, "cloud");
 await cloud.request("/api/bootstrap", { headers: { "X-Regression": "yes" } });
 assert.equal(cloudRequest.pathValue, "https://fbvzqdqjqcbjopuinknw.supabase.co/functions/v1/claw-api/api/bootstrap");
 assert.equal(cloudRequest.options.headers.Authorization, "Bearer session-token");
+assert.equal(cloudRequest.options.headers.apikey, "synthetic-publishable-key");
 assert.equal(cloudRequest.options.headers["Content-Type"], "application/json");
 assert.equal(cloudRequest.options.headers["X-Regression"], "yes");
 
 const noToken = runAdapter({
-  cloudConfig: { mode: "cloud-staging", projectRef: "fbvzqdqjqcbjopuinknw", apiBaseUrl: "https://fbvzqdqjqcbjopuinknw.supabase.co/functions/v1/claw-api", getAccessToken: async () => "" },
+  runtimeMode: "cloud-staging",
+  cloudConfig: { mode: "cloud-staging", projectRef: "fbvzqdqjqcbjopuinknw", publishableKey: "synthetic-publishable-key", apiBaseUrl: "https://fbvzqdqjqcbjopuinknw.supabase.co/functions/v1/claw-api", getAccessToken: async () => "" },
   fetch: async () => response({ ok: true }),
 });
 await assert.rejects(() => noToken.request("/api/bootstrap"), /Sign in is required/);
 
 assert.throws(
-  () => runAdapter({ cloudConfig: { mode: "cloud-staging", projectRef: "wrong-project", apiBaseUrl: "https://wrong-project.supabase.co/functions/v1/claw-api", getAccessToken: async () => "session-token" }, fetch: async () => response({}) }),
+  () => runAdapter({ runtimeMode: "cloud-staging", cloudConfig: { mode: "cloud-staging", projectRef: "wrong-project", publishableKey: "synthetic-publishable-key", apiBaseUrl: "https://wrong-project.supabase.co/functions/v1/claw-api", getAccessToken: async () => "session-token" }, fetch: async () => response({}) }),
   /restricted to the approved JOLI POLI staging project/,
 );
 
 assert.throws(
-  () => runAdapter({ cloudConfig: { mode: "cloud", projectRef: "fbvzqdqjqcbjopuinknw" }, fetch: async () => response({}) }),
-  /runtime mode is invalid/,
+  () => runAdapter({ runtimeMode: "cloud-staging", cloudConfig: { mode: "cloud", projectRef: "fbvzqdqjqcbjopuinknw" }, fetch: async () => response({}) }),
+  /Cloud configuration is unavailable/,
 );
 
 console.log("PASS - local/cloud adapter contract; no network access attempted.");

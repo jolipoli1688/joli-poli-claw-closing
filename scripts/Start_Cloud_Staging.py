@@ -47,7 +47,10 @@ class Handler(SimpleHTTPRequestHandler):
         config = {"mode": RUNTIME_MODE, "projectRef": REF, "supabaseUrl": url, "publishableKey": key, "apiBaseUrl": f"{url}/functions/v1/claw-api"}
         html = (WEB / "index.html").read_text(encoding="utf-8")
         html = html.replace("Loading the Excel database\u2026", "Loading your workspace\u2026")
+        html = html.replace('window.__CLAW_RUNTIME_MODE__="local";', f"window.__CLAW_RUNTIME_MODE__={json.dumps(RUNTIME_MODE)};")
         html = html.replace("</head>", f"<script>window.__CLAW_CLOUD_CONFIG__={json.dumps(config, separators=(',', ':'))};</script></head>")
+        if 'window.__CLAW_RUNTIME_MODE__="cloud-staging";' not in html:
+            raise RuntimeError("Cloud runtime mode was not injected.")
         html = html.replace('<script src="./claw-api.js?v=2.1.78-local-uat-1"></script>', f"{CLOUD_SCRIPTS}<script src=\"./claw-api.js?v=2.1.78-local-uat-1\"></script>")
         if "cloud-api-adapter.js" not in html:
             raise RuntimeError("Cloud runtime scripts were not injected.")
