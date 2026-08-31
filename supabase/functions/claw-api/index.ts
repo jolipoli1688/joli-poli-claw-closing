@@ -148,9 +148,9 @@ function calculate(payload: any) {
   return { total_sales: Number(totalSales.toFixed(2)), coins_dispensed: coinsDispensed, machine_coins_used: machineCoins, coin_variance: variance, total_prizes_won: prizes, average_sale_value_per_coin: coinsDispensed > 0 ? totalSales / coinsDispensed : 0, average_coins_per_prize: prizes > 0 ? machineCoins / prizes : 0, average_revenue_per_prize: prizes > 0 ? totalSales / prizes : 0, closing_status: variance === 0 ? "Balanced" : "Unbalanced" };
 }
 
-async function saveClosing(ctx: Context, payload: any) {
+async function saveClosing(ctx: Context, payload: any, options: { requireClosedBy?: boolean } = {}) {
   const workflow = String(payload.workflow_status || "Draft").toLowerCase();
-  if (!payload.closed_by) throw new Error("Closed By is required.");
+  if (options.requireClosedBy !== false && !payload.closed_by) throw new Error("Closed By is required.");
   if (workflow === "finalized" && (!canFinalize(ctx) || !payload.verified_by)) throw new Error(!canFinalize(ctx) ? "Not authorized to finalize." : "Verified By is required before finalizing.");
   const settings = await ctx.admin.from("store_settings").select("*").eq("store_id", ctx.store.id).single();
   if (settings.error) throw new Error(settings.error.message);
@@ -189,12 +189,58 @@ async function saveClosing(ctx: Context, payload: any) {
       const finalQty = integer(product.final_qty ?? product.final_prize);
       const productEntry = await ctx.admin.from("closing_product_entries").insert({ closing_machine_entry_id: entry.data.id, machine_style_id: style.id, barcode_snapshot: style.barcode, product_name_snapshot: style.product_name, product_code_snapshot: style.style_code, image_object_key_snapshot: style.image_path, sort_order_snapshot: style.sort_order, begin_qty: integer(product.begin_qty ?? product.begin_prize ?? style.starting_qty), refill_qty: refill, final_qty: finalQty, qty_used: integer(product.begin_qty ?? product.begin_prize ?? style.starting_qty) + refill - finalQty }).select("id").single();
       if (productEntry.error) throw new Error(productEntry.error.message);
-      for (const event of product.refill_history || []) { const delta = integer(event.qty); if (delta) await ctx.admin.from("refill_events").insert({ closing_product_entry_id: productEntry.data.id, delta_qty: delta, note: event.note || null, created_by: ctx.userId, created_by_name_snapshot: ctx.profile.display_name }); }
+      for (const event of product.refill_history || []) { const delta = integer(event.qty); if (delta) await ctx.admin.from("refill_events").insert({ closing_product_entry_id: productEntry.data.id, delta_qty: delta, note: event.note || null, created_by: ctx.userId, created_by_name_snapshot: String(event.by || event.created_by_name_snapshot || ctx.profile.display_name || "") }); }
       if (refill && !(product.refill_history || []).length) await ctx.admin.from("refill_events").insert({ closing_product_entry_id: productEntry.data.id, delta_qty: refill, created_by: ctx.userId, created_by_name_snapshot: ctx.profile.display_name });
     }
   }
   if (workflow === "finalized") { const finalized = await ctx.user.rpc("finalize_daily_closing", { target_closing: closingId }); if (finalized.error) throw new Error(finalized.error.message); }
   return { ok: true, closing_id: closingId, workflow_status: workflow === "finalized" ? "Finalized" : "Draft", result };
+}
+
+function refillHistory(events: any[]) {
+  return (events || []).filter(event => !event.voided_at).map(event => ({ id: event.id, qty: integer(event.delta_qty), at: event.created_at, by: String(event.created_by_name_snapshot || "") }));
+}
+
+async function recordRefill(ctx: Context, body: any) {
+  const adjustedBy = String(body.adjusted_by || "").trim();
+  if (!adjustedBy) throw new Error("Adjusted By is required.");
+  const quantity = Number(body.delta_qty);
+  if (!Number.isInteger(quantity)) throw new Error("Adjustment Qty must be a whole number.");
+  if (quantity === 0) throw new Error("Adjustment Qty cannot be 0.");
+
+  let closingId = String(body.closing_id || body.closing_payload?.closing_id || "");
+  if (!closingId) {
+    if (!body.closing_payload || typeof body.closing_payload !== "object") throw new Error("A draft closing is required before recording an adjustment.");
+    const created = await saveClosing(ctx, { ...body.closing_payload, closing_id: "", workflow_status: "Draft" }, { requireClosedBy: false });
+    closingId = created.closing_id;
+  }
+
+  const closing = await ctx.admin.from("daily_closings").select("id,store_id,status").eq("id", closingId).single();
+  if (closing.error || closing.data.store_id !== ctx.store.id) throw new Error("You do not have access to this closing.");
+  if (closing.data.status !== "draft") throw new Error("This closing is locked.");
+
+  const styleId = String(body.machine_style_id || "");
+  if (!styleId) throw new Error("A product is required for this adjustment.");
+  const machineEntries = await ctx.admin.from("closing_machine_entries").select("id").eq("closing_id", closingId);
+  if (machineEntries.error) throw new Error(machineEntries.error.message);
+  const machineEntryIds = (machineEntries.data || []).map((entry: any) => entry.id);
+  if (!machineEntryIds.length) throw new Error("The selected product is not in this closing.");
+  const product = await ctx.admin.from("closing_product_entries").select("id,begin_qty,refill_qty,final_qty").eq("machine_style_id", styleId).in("closing_machine_entry_id", machineEntryIds).maybeSingle();
+  if (product.error || !product.data) throw new Error("The selected product is not in this closing.");
+
+  const nextRefillQty = integer(product.data.refill_qty) + quantity;
+  const availableQty = integer(product.data.begin_qty) + nextRefillQty;
+  if (availableQty < 0) throw new Error("This adjustment would make available stock negative.");
+  const created = await ctx.admin.from("refill_events").insert({ closing_product_entry_id: product.data.id, delta_qty: quantity, created_by: ctx.userId, created_by_name_snapshot: adjustedBy }).select("*").single();
+  if (created.error) throw new Error(created.error.message);
+  const productUpdate = await ctx.admin.from("closing_product_entries").update({ refill_qty: nextRefillQty, qty_used: availableQty - integer(product.data.final_qty), updated_at: new Date().toISOString() }).eq("id", product.data.id);
+  if (productUpdate.error) {
+    await ctx.admin.from("refill_events").delete().eq("id", created.data.id);
+    throw new Error(productUpdate.error.message);
+  }
+  const events = await ctx.admin.from("refill_events").select("*").eq("closing_product_entry_id", product.data.id).is("voided_at", null).order("created_at");
+  if (events.error) throw new Error(events.error.message);
+  return { ok: true, closing_id: closingId, product: { refill_qty: nextRefillQty, qty_used: availableQty - integer(product.data.final_qty), refill_history: refillHistory(events.data || []) } };
 }
 
 async function serve(req: Request) {
@@ -246,12 +292,13 @@ async function serve(req: Request) {
     if (path === "/api/calculate") return json({ summary: calculate(body), machines: [] });
     if (path === "/api/settings/unlock" && req.method === "POST") return configurationManager(ctx) ? json({ ok: true }) : fail("Developer or Admin role required.", 403);
     if (path === "/api/closings/save" && req.method === "POST") return json(await saveClosing(ctx, body));
+    if (path === "/api/refills" && req.method === "POST") return json(await recordRefill(ctx, body));
     if (path.startsWith("/api/refills/") && path.endsWith("/void") && req.method === "POST") { const refillId = path.split("/")[3]; const result = await ctx.user.rpc("void_refill_event", { target_refill: refillId, reason: String(body.reason || "") }); if (result.error) throw new Error(result.error.message); return json({ ok: true, refill: result.data }); }
     if (path === "/api/closings" && req.method === "GET") { const { data, error } = await ctx.admin.from("daily_closings").select("*").eq("store_id", ctx.store.id).order("report_date", { ascending: false }).limit(Math.min(integer(url.searchParams.get("limit")) || 500, 5000)); if (error) throw new Error(error.message); return json((data || []).map(header)); }
     if (path === "/api/reports/summary" && req.method === "GET") { const rows = await monthlyClosings(ctx, url.searchParams.get("month") || ""); return json({ closings: rows.length, total_sales: rows.reduce((sum: number, row: any) => sum + num(row.total_sales_usd), 0), coins: rows.reduce((sum: number, row: any) => sum + integer(row.machine_coins_used), 0), prizes: rows.reduce((sum: number, row: any) => sum + integer(row.total_products), 0), outlet: ctx.store.name }); }
     if (path === "/api/reports/monthly" && req.method === "POST") { const rows = await monthlyClosings(ctx, String(body.month || "")); const lines: unknown[][] = [["JOLI POLI Claw Monthly Report", ctx.store.name, body.month], [], ["Report Date", "Closing ID", "Workflow", "Total Sales", "Coins Played", "Prizes Won", "Coin Variance", "Closed By", "Verified By"]]; for (const row of rows) { const value = header(row); lines.push([value.Report_Date, value.Closing_ID, value.Workflow_Status, value.Total_Sales, value.Machine_Coins_Used, value.Total_Prizes_Won, value.Coin_Variance, value.Closed_By, value.Verified_By]); } lines.push([], ["Totals", rows.length, "", rows.reduce((sum: number, row: any) => sum + num(row.total_sales_usd), 0), rows.reduce((sum: number, row: any) => sum + integer(row.machine_coins_used), 0), rows.reduce((sum: number, row: any) => sum + integer(row.total_products), 0)]); return json(download(`JOLI_POLI_Claw_Monthly_${ctx.store.code}_${body.month}.csv`, lines)); }
     if (path.startsWith("/api/reports/daily/") && req.method === "POST") { const closingId = path.split("/").pop()!; const detail = await closingDetail(ctx, closingId); const value = header(detail.closing); const lines: unknown[][] = [["JOLI POLI Claw Daily Report", ctx.store.name, value.Report_Date], [], ["Closing ID", value.Closing_ID], ["Final State", value.Workflow_Status], ["Total Sales", value.Total_Sales], ["Coins Dispensed", value.Coins_Dispensed], ["Machine Coins Used", value.Machine_Coins_Used], ["Coin Variance", value.Coin_Variance], ["Total Prizes Won", value.Total_Prizes_Won], [], ["Machine", "Product / Barcode", "Begin Qty", "Refill Qty", "Final Qty", "Qty Used", "Coins Used", "Meter Mode", "Status"]]; for (const machine of detail.machines) for (const product of machine.closing_product_entries || []) lines.push([machine.machine_name_snapshot, product.product_name_snapshot || product.barcode_snapshot, product.begin_qty, product.refill_qty, product.final_qty, product.qty_used, machine.coins_used, machine.meter_mode, machine.machine_status]); return json(download(`JOLI_POLI_Claw_Daily_${ctx.store.code}_${value.Report_Date}_${closingId}.csv`, lines)); }
-    if (path.startsWith("/api/closings/") && req.method === "GET") { const id = path.split("/").pop()!; const { data: closing, error } = await ctx.admin.from("daily_closings").select("*").eq("id", id).eq("store_id", ctx.store.id).single(); if (error) return fail("Closing not found.", 404); const { data: machines } = await ctx.admin.from("closing_machine_entries").select("*, closing_product_entries(*, refill_events(*))").eq("closing_id", id); const mapped = (machines || []).map((row: any) => ({ Machine_ID: row.machine_id, Machine_Name: row.machine_name_snapshot, Machine_Type: row.machine_type_name_snapshot, Capacity: row.capacity_snapshot, Begin_Prize: 0, Refill_Prize: 0, Final_Prize: 0, Begin_Coin_Meter: row.begin_meter, Final_Coin_Meter: row.final_meter, Coins_Used: row.coins_used, Meter_Mode: row.meter_mode, Manual_Coins_Used: row.manual_coins_used, Win_Rate: row.win_rate, Machine_Status: row.machine_status, Notes: row.notes, Products: row.closing_product_entries })); return json({ header: header(closing), machines: mapped, products: mapped.flatMap((row: any) => row.Products.map((product: any) => ({ ...product, Machine_ID: row.Machine_ID, Product_ID: product.machine_style_id, Barcode: product.barcode_snapshot, Begin_Qty: product.begin_qty, Final_Qty: product.final_qty, Qty_Used: product.qty_used, Refill_Qty: product.refill_qty, Refill_History_JSON: product.refill_events || [] }))) }); }
+    if (path.startsWith("/api/closings/") && req.method === "GET") { const id = path.split("/").pop()!; const { data: closing, error } = await ctx.admin.from("daily_closings").select("*").eq("id", id).eq("store_id", ctx.store.id).single(); if (error) return fail("Closing not found.", 404); const { data: machines } = await ctx.admin.from("closing_machine_entries").select("*, closing_product_entries(*, refill_events(*))").eq("closing_id", id); const mapped = (machines || []).map((row: any) => ({ Machine_ID: row.machine_id, Machine_Name: row.machine_name_snapshot, Machine_Type: row.machine_type_name_snapshot, Capacity: row.capacity_snapshot, Begin_Prize: 0, Refill_Prize: 0, Final_Prize: 0, Begin_Coin_Meter: row.begin_meter, Final_Coin_Meter: row.final_meter, Coins_Used: row.coins_used, Meter_Mode: row.meter_mode, Manual_Coins_Used: row.manual_coins_used, Win_Rate: row.win_rate, Machine_Status: row.machine_status, Notes: row.notes, Products: (row.closing_product_entries || []).map((product: any) => ({ ...product, refill_events: refillHistory(product.refill_events || []) })) })); return json({ header: header(closing), machines: mapped, products: mapped.flatMap((row: any) => row.Products.map((product: any) => ({ ...product, Machine_ID: row.Machine_ID, Product_ID: product.machine_style_id, Barcode: product.barcode_snapshot, Begin_Qty: product.begin_qty, Final_Qty: product.final_qty, Qty_Used: product.qty_used, Refill_Qty: product.refill_qty, Refill_History_JSON: product.refill_events || [] }))) }); }
     if (path.startsWith("/api/closings/") && req.method === "DELETE") { if (!configurationManager(ctx)) return fail("Developer or Admin role required.", 403); const id = path.split("/").pop()!; const result = await ctx.admin.from("daily_closings").update({ status: "void", voided_by: ctx.userId, voided_at: new Date().toISOString(), void_reason: String(body.reason || "") }).eq("id", id).eq("store_id", ctx.store.id).eq("status", "draft"); if (result.error) throw new Error(result.error.message); return json({ ok: true }); }
     if (path === "/api/history" && req.method === "GET") { const { data, error } = await ctx.admin.from("daily_closings").select("*").eq("store_id", ctx.store.id).eq("status", "finalized").order("finalized_at", { ascending: false }).limit(Math.min(integer(url.searchParams.get("limit")) || 500, 5000)); if (error) throw new Error(error.message); const records = (data || []).map(row => ({ ...header(row), Refill_Qty: 0 })); return json({ records, machines: [], staff: [...new Set(records.map((row: any) => row.Closed_By).filter(Boolean))] }); }
     if (path === "/api/dashboard") return json({ summary: {}, recent_closings: [] });

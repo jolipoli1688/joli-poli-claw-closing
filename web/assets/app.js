@@ -1669,7 +1669,20 @@ function showModal(title, body, saveLabel, onSave) {
   root.querySelector(".modal-close").onclick = closeModal;
   root.querySelector(".modal-cancel").onclick = closeModal;
   root.querySelector(".modal-backdrop").addEventListener("click", event => { if (event.target.classList.contains("modal-backdrop")) closeModal(); });
-  root.querySelector(".modal-save").onclick = async () => { try { await onSave(); } catch (error) { toast("Cannot complete action", error.message, "error"); } };
+  root.querySelector(".modal-save").onclick = async event => {
+    const button = event.currentTarget;
+    if (button.dataset.submitting === "true") return;
+    button.dataset.submitting = "true";
+    button.disabled = true;
+    try {
+      await onSave();
+    } catch (error) {
+      toast("Cannot complete action", error.message, "error");
+    } finally {
+      button.dataset.submitting = "false";
+      button.disabled = false;
+    }
+  };
 }
 function closeModal() { document.getElementById("modalRoot").innerHTML = ""; }
 function showConfirm(title, message, onConfirm) { showModal(title, `<p style="margin:0;color:#475467;line-height:1.55">${escapeHtml(message)}</p>`, "Confirm", async () => { closeModal(); await onConfirm(); }); }
@@ -4276,25 +4289,37 @@ showRefillProductModalV2144 = function(machineIndex, productIndex) {
     const available = Math.max(0, numeric(product.begin_qty)) + refillTotal(product) + qty;
     if (available < 0) throw new Error('This adjustment would make available stock negative.');
 
-    const oldQty = product.refill_qty;
-    const oldHistory = refillHistoryFor(product).slice();
-    const nextHistory = oldHistory.slice();
-    nextHistory.push({ qty, at: new Date().toISOString(), by: staff });
-    product.refill_history = nextHistory;
-    product.refill_qty = nextHistory.reduce((sum, item) => sum + signedAdjustmentNumberV2164(item.qty), 0);
-
-    bindRefillHistoryButtons();
     try {
-      const result = await api('/api/closings/save', { method: 'POST', body: JSON.stringify(closingPayload('Draft')) });
-      state.closingId = result.closing_id;
-      state.closingStatus = result.workflow_status;
+      const cloudRefill = window.__CLAW_CLOUD_CONFIG__?.mode === 'cloud';
+      if (cloudRefill) {
+        const result = await api('/api/refills', {
+          method: 'POST',
+          body: JSON.stringify({
+            closing_id: state.closingId || '',
+            closing_payload: state.closingId ? undefined : closingPayload('Draft'),
+            machine_style_id: product.product_id,
+            adjusted_by: staff,
+            delta_qty: qty,
+          }),
+        });
+        state.closingId = result.closing_id;
+        state.closingStatus = 'Draft';
+        product.refill_history = result.product.refill_history;
+        product.refill_qty = result.product.refill_qty;
+      } else {
+        const oldHistory = refillHistoryFor(product).slice();
+        const nextHistory = oldHistory.slice();
+        nextHistory.push({ qty, at: new Date().toISOString(), by: staff });
+        product.refill_history = nextHistory;
+        product.refill_qty = nextHistory.reduce((sum, item) => sum + signedAdjustmentNumberV2164(item.qty), 0);
+        const result = await api('/api/closings/save', { method: 'POST', body: JSON.stringify(closingPayload('Draft')) });
+        state.closingId = result.closing_id;
+        state.closingStatus = result.workflow_status;
+      }
       closeModal();
       renderClosing();
       toast('Stock adjustment saved', machineLabel + ' · ' + (product.barcode || 'Product') + ' · ' + (qty > 0 ? '+' : '') + number(qty) + ' · ' + staff + '.');
     } catch (error) {
-      product.refill_qty = oldQty;
-      product.refill_history = oldHistory;
-      bindRefillHistoryButtons();
       throw error;
     }
   });

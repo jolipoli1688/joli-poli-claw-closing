@@ -8,13 +8,23 @@
 
   let profile = null;
   let menu = null;
+  let menuOwner = null;
+  const onMenuKeydown = event => {
+    if (event.key !== "Escape" || !menu) return;
+    const owner = menuOwner;
+    closeMenu();
+    owner?.focus();
+  };
   const escapeHtml = value => String(value ?? "").replace(/[&<'"]/g, char => ({ "&":"&amp;", "<":"&lt;", "'":"&#39;", '"':"&quot;" })[char]);
   const roleLabel = value => ({ developer: "Developer", admin: "Admin", outlet: "Outlet" })[String(value || "")] || "";
   const outletLabel = value => value?.role === "outlet" ? (value.outlets || []).map(outlet => outlet.name || outlet.code).filter(Boolean).join(", ") || "No outlet assigned" : "All outlets";
   const closeMenu = () => {
     menu?.remove();
     menu = null;
-    document.getElementById("clawSidebarProfileButton")?.setAttribute("aria-expanded", "false");
+    document.removeEventListener("keydown", onMenuKeydown);
+    menuOwner?.classList.remove("is-open");
+    menuOwner?.setAttribute("aria-expanded", "false");
+    menuOwner = null;
   };
   const clearProfile = () => {
     profile = null;
@@ -38,6 +48,7 @@
   const openMenu = button => {
     if (!profile) return;
     closeMenu();
+    menuOwner = button;
     const rect = button.getBoundingClientRect();
     menu = document.createElement("div");
     menu.className = "claw-profile-menu";
@@ -47,6 +58,7 @@
     menu.style.bottom = `${Math.max(8, window.innerHeight - rect.top + 8)}px`;
     document.body.appendChild(menu);
     button.setAttribute("aria-expanded", "true");
+    button.classList.add("is-open");
     menu.querySelectorAll("[data-profile-action]").forEach(item => item.addEventListener("click", async () => {
       const action = item.dataset.profileAction;
       closeMenu();
@@ -55,6 +67,7 @@
       if (action === "signout") await window.clawCloudAuth.signOut();
     }));
     setTimeout(() => document.addEventListener("click", event => { if (menu && !menu.contains(event.target) && event.target !== button) closeMenu(); }, { once: true }), 0);
+    document.addEventListener("keydown", onMenuKeydown);
   };
   const renderProfile = () => {
     const footer = document.querySelector(".sidebar-footer");

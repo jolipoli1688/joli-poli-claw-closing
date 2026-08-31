@@ -7,6 +7,7 @@ const edge = await readFile(new URL("../supabase/functions/claw-api/index.ts", i
 const runtime = await readFile(new URL("../web/cloud-runtime.js", import.meta.url), "utf8");
 const profile = await readFile(new URL("../web/cloud-profile.js", import.meta.url), "utf8");
 const users = await readFile(new URL("../web/cloud-user-management.js", import.meta.url), "utf8");
+const app = await readFile(new URL("../web/assets/app.js", import.meta.url), "utf8");
 const index = await readFile(new URL("../web/index.html", import.meta.url), "utf8");
 const styles = await readFile(new URL("../web/assets/styles.css", import.meta.url), "utf8");
 const launcher = await readFile(new URL("./Start_Cloud_Staging.py", import.meta.url), "utf8");
@@ -14,7 +15,7 @@ const manualLauncher = await readFile(new URL("../Start_Cloud_Staging.bat", impo
 const devRunner = await readFile(new URL("./dev.mjs", import.meta.url), "utf8");
 const manualChecklist = await readFile(new URL("../docs/MANUAL_CLOUD_BROWSER_UAT.md", import.meta.url), "utf8");
 
-for (const route of ["/api/bootstrap", "/api/settings", "/api/machines", "/api/new-closing", "/api/calculate", "/api/closings/save", "/api/refills/", "/api/history", "/api/images/replace", "/api/images/remove"]) {
+for (const route of ["/api/bootstrap", "/api/settings", "/api/machines", "/api/new-closing", "/api/calculate", "/api/closings/save", "/api/refills", "/api/history", "/api/images/replace", "/api/images/remove"]) {
   assert.ok(edge.includes(route), `cloud Edge façade must cover ${route}`);
 }
 assert.match(edge, /admin\.auth\.getUser\(bearer\)/, "Edge façade must verify the user token");
@@ -57,15 +58,29 @@ assert.match(profile, /My Profile/, "cloud profile menu must include My Profile"
 assert.match(profile, /Manage Users/, "cloud profile menu must include the Developer action");
 assert.match(profile, /profile\.role === "developer"/, "Manage Users must be limited to Developer profile context");
 assert.match(profile, /Outlet Access/, "profile dialog must show outlet access");
+assert.match(profile, /aria-expanded/, "profile row must expose its menu state");
+assert.match(profile, /event\.key !== "Escape"/, "profile menu must close on Escape");
+assert.match(profile, /classList\.add\("is-open"\)/, "profile row must show selected/open state");
 assert.ok(!profile.includes("@claw.internal"), "profile surface must not expose technical Auth email");
 assert.match(index, /cloud-profile\.js/, "cloud profile surface must be loaded with the cloud runtime");
 assert.match(styles, /#clawSidebarProfile/, "cloud profile surface must use the sidebar");
 assert.match(styles, /claw-staging-indicator/, "STAGING must be a separate header indicator");
+assert.match(styles, /claw-sidebar-profile-button\.is-open/, "profile selected state must be styled");
 assert.ok(!styles.includes("#clawManageUsersButton"), "old detached Manage Users control must be removed");
+assert.ok(!runtime.includes("STAGING · Sign out"), "old floating staging sign-out must not be rendered");
+assert.match(app, /adjusted_by: staff/, "cloud refill must send its own Adjusted By value");
+assert.match(app, /api\('\/api\/refills'/, "cloud refill must use the dedicated refill mutation");
+assert.match(app, /dataset\.submitting/, "modal actions must prevent duplicate submission");
+assert.match(edge, /async function recordRefill/, "Edge API must isolate refill behavior from closing save");
+assert.match(edge, /Adjusted By is required/, "Edge refill must require its audit operator");
+assert.match(edge, /This closing is locked/, "Edge refill must reject finalized or locked closings");
+assert.match(edge, /requireClosedBy: false/, "refill draft creation alone may bypass closing staff validation");
+assert.match(edge, /created_by_name_snapshot: adjustedBy/, "Edge refill must persist the supplied Adjusted By value");
 assert.match(edge, /apply_developer_user_profile/, "Developer-managed users must use the transactional profile/access RPC");
 assert.match(edge, /auth\.admin\.deleteUser/, "failed user setup must compensate by removing the new Auth identity");
 assert.match(launcher, /CLAW_SUPABASE_PUBLISHABLE_KEY/, "launcher must inject only runtime configuration");
 assert.match(launcher, /\("localhost", 3001\)/, "cloud host must use localhost:3001");
+assert.match(launcher, /Cache-Control", "no-store"/, "cloud launcher must not retain stale runtime assets");
 assert.ok(!runtime.includes("SERVICE_ROLE"), "browser runtime must not contain a service-role key");
 assert.match(manualLauncher, /call npm\.cmd run dev:cloud/, "manual launcher must delegate to the canonical cloud command");
 assert.match(devRunner, /\.env\.cloud-staging\.local/, "canonical cloud command must use its separate browser-safe config");

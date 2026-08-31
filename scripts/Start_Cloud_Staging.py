@@ -39,6 +39,13 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def end_headers(self):
+        # Staging is a developer launcher. Never retain stale runtime/profile
+        # assets after a local update; LOCAL mode is served separately.
+        if self.path.split("?", 1)[0].endswith((".js", ".css")):
+            self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
 
 if __name__ == "__main__":
     ThreadingHTTPServer(("localhost", 3001), Handler).serve_forever()
