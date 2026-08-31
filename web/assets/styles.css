@@ -3580,7 +3580,7 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   }
 }
 
-/* Cloud staging sign-in: dark glass composition adapted from Figma node 2:173. */
+/* Cloud staging sign-in: premium white-glass refinement of the Figma-derived composition. */
 #clawStagingSignIn > .claw-login-stage {
   position: fixed;
   inset: 0;
@@ -3589,7 +3589,9 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   place-items: center;
   overflow: hidden;
   padding: 32px;
-  background: linear-gradient(135deg, #2c2a52 0%, #29274d 55%, #242342 100%);
+  background:
+    radial-gradient(circle at 18% 12%, rgba(244, 213, 0, .04), transparent 34%),
+    linear-gradient(135deg, #fff 0%, #fafaf8 45%, #f7f7f4 100%);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -3616,53 +3618,54 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   position: absolute;
   display: block;
   pointer-events: none;
-  filter: sepia(1) saturate(4.25) hue-rotate(352deg) brightness(1.1) contrast(1.04);
+  opacity: .58;
+  filter: sepia(.78) saturate(2.15) hue-rotate(350deg) brightness(1.08) contrast(.96) drop-shadow(0 14px 24px rgba(130, 95, 0, .12));
 }
 
-.claw-login-shape-top-arc { top: -72px; left: calc(50% - 415px); width: 204px; }
-.claw-login-shape-upper-left { top: 305px; left: calc(50% - 575px); width: 275px; }
-.claw-login-shape-mid-left { top: 464px; left: calc(50% - 575px); width: 156px; }
-.claw-login-shape-bottom-left-loop { top: 642px; left: calc(50% - 540px); width: 369px; }
-.claw-login-shape-top-right-loop { top: 110px; left: calc(50% + 10px); width: 668px; }
-.claw-login-shape-bottom-left-crop { bottom: -14px; left: calc(50% - 545px); width: 229px; }
-.claw-login-shape-right-waves { top: 744px; left: calc(50% + 320px); width: 176px; }
-.claw-login-shape-bottom-right-crop { right: -90px; bottom: -100px; width: 470px; }
+.claw-login-shape-top-arc { top: -74px; left: calc(50% - 422px); width: 190px; }
+.claw-login-shape-upper-left { top: 288px; left: calc(50% - 600px); width: 250px; }
+.claw-login-shape-mid-left { top: 440px; left: calc(50% - 590px); width: 142px; }
+.claw-login-shape-bottom-left-loop { top: auto; bottom: -125px; left: calc(50% - 555px); width: 340px; }
+.claw-login-shape-top-right-loop { top: 78px; left: calc(50% + 270px); width: 430px; }
+.claw-login-shape-bottom-left-crop { bottom: -78px; left: calc(50% - 525px); width: 210px; }
+.claw-login-shape-right-waves { top: auto; bottom: -48px; left: calc(50% + 365px); width: 152px; }
+.claw-login-shape-bottom-right-crop { right: -115px; bottom: -130px; width: 420px; }
 
 .claw-login-shape-top-arc,
 .claw-login-shape-right-waves {
-  opacity: .88;
+  opacity: .48;
 }
 
 .claw-login-card {
   position: relative;
   z-index: 1;
-  width: min(690px, calc(100vw - 48px));
-  height: 690px;
-  min-height: 680px;
+  width: min(680px, calc(100vw - 48px));
+  height: 520px;
+  min-height: 520px;
   overflow: hidden;
-  border: 2px solid rgba(255, 255, 255, .78);
-  border-radius: 38px;
-  background: rgba(100, 96, 145, .42);
-  box-shadow: 0 24px 70px rgba(10, 8, 30, .24);
-  backdrop-filter: blur(28px) saturate(120%);
-  -webkit-backdrop-filter: blur(28px) saturate(120%);
-  color: #fff;
+  border: 1px solid rgba(17, 24, 39, .08);
+  border-radius: 30px;
+  background: rgba(255, 255, 255, .72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .80), 0 30px 80px rgba(17, 24, 39, .12);
+  backdrop-filter: blur(28px) saturate(125%);
+  -webkit-backdrop-filter: blur(28px) saturate(125%);
+  color: #111827;
   font: inherit;
 }
 
 .claw-login-environment {
   position: absolute;
   z-index: 2;
-  top: 22px;
-  right: 24px;
+  top: 20px;
+  right: 22px;
   display: inline-flex;
   align-items: center;
   min-height: 22px;
   padding: 0 9px;
-  border: 1px solid rgba(244, 213, 0, .56);
+  border: 1px solid rgba(180, 145, 0, .28);
   border-radius: 999px;
-  background: rgba(31, 30, 60, .38);
-  color: #fff3a1;
+  background: rgba(244, 213, 0, .10);
+  color: #7a6400;
   font-size: 9px;
   font-weight: 700;
   letter-spacing: .08em;
@@ -3671,8 +3674,8 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
 .claw-login-form-stack {
   position: absolute;
   z-index: 1;
-  top: 48px;
-  left: 95px;
+  top: 42px;
+  left: 90px;
   width: 500px;
   transform: none;
   display: flex;
@@ -3685,7 +3688,7 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 0 0 18px;
+  margin: 0 0 24px;
 }
 
 .claw-login-logo {
@@ -3702,8 +3705,8 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
 }
 
 .claw-login-brand strong {
-  color: #fff;
-  font-size: 15px;
+  color: #111827;
+  font-size: 16px;
   font-weight: 700;
   line-height: 18px;
   letter-spacing: .045em;
@@ -3711,8 +3714,8 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
 
 .claw-login-brand span {
   margin-top: 2px;
-  color: rgba(255, 255, 255, .70);
-  font-size: 12px;
+  color: #6b7280;
+  font-size: 13px;
   font-weight: 500;
   line-height: 16px;
 }
@@ -3723,46 +3726,56 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
 
 .claw-login-heading h1 {
   margin: 0;
-  color: #fff;
-  font-size: 32px;
+  color: #111827;
+  font-size: 30px;
   font-weight: 700;
   line-height: 38px;
   letter-spacing: -.02em;
 }
 
 .claw-login-heading p {
-  display: none;
+  margin: 6px 0 0;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 21px;
 }
 
 .claw-login-field {
   display: grid;
   gap: 8px;
-  color: rgba(255, 255, 255, .90);
-  font-size: 16px;
-  font-weight: 400;
-  line-height: 22px;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
 }
 
 .claw-login-field + .claw-login-field {
-  margin-top: 28px;
+  margin-top: 18px;
 }
 
 .claw-login-input {
   position: relative;
   width: 100%;
-  height: 52px;
+  height: 54px;
   min-width: 0;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, .65);
-  border-radius: 11px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
   background: rgba(255, 255, 255, .96);
-  box-shadow: none;
+  box-shadow: 0 3px 10px rgba(17, 24, 39, .04);
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.claw-login-input:hover {
+  border-color: #d1d5db;
+  background: #fff;
 }
 
 .claw-login-input:focus-within {
-  border-color: rgba(244, 213, 0, .82);
+  border-color: rgba(196, 160, 0, .65);
   background: #fff;
-  box-shadow: 0 0 0 3px rgba(244, 213, 0, .18);
+  box-shadow: 0 0 0 3px rgba(244, 213, 0, .12);
 }
 
 .claw-login-input > svg {
@@ -3775,7 +3788,7 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   margin: 0;
   padding: 0;
   fill: none;
-  stroke: #777384;
+  stroke: #6b7280;
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -3788,10 +3801,10 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   border: 0;
   outline: 0;
   background: transparent;
-  color: #28263d;
+  color: #111827;
   font: inherit;
   font-size: 14px;
-  font-weight: 400;
+  font-weight: 500;
   padding: 0 14px 0 48px;
   appearance: none;
   -webkit-appearance: none;
@@ -3810,9 +3823,9 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
 .claw-login-input input:-webkit-autofill,
 .claw-login-input input:-webkit-autofill:hover,
 .claw-login-input input:-webkit-autofill:focus {
-  -webkit-text-fill-color: #28263d;
+  -webkit-text-fill-color: #111827;
   -webkit-box-shadow: 0 0 0 1000px rgba(255, 255, 255, .96) inset;
-  caret-color: #28263d;
+  caret-color: #111827;
   transition: background-color 9999s ease-out 0s;
 }
 
@@ -3827,16 +3840,16 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   margin: 0;
   transform: translateY(-50%);
   border: 0;
-  border-radius: 10px;
+  border-radius: 9px;
   background: transparent;
-  color: #777384;
+  color: #6b7280;
   cursor: pointer;
 }
 
 .claw-login-password-toggle:hover,
 .claw-login-password-toggle:focus-visible {
-  background: rgba(40, 38, 61, .06);
-  color: #28263d;
+  background: #f9fafb;
+  color: #111827;
   outline: 0;
   box-shadow: none;
 }
@@ -3853,23 +3866,23 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
 
 .claw-login-submit {
   width: 100%;
-  height: 52px;
-  margin-top: 30px;
+  height: 54px;
+  margin-top: 24px;
   border: 0;
-  border-radius: 11px;
-  background: linear-gradient(90deg, #f6c800, #f4d500);
-  color: #171725;
+  border-radius: 14px;
+  background: #111827;
+  color: #fff;
   font: inherit;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 8px 18px rgba(10, 8, 30, .16);
+  box-shadow: 0 8px 20px rgba(17, 24, 39, .16);
   transition: transform 170ms ease, background 170ms ease, box-shadow 170ms ease;
 }
 
 .claw-login-submit:hover:not(:disabled) {
-  background: linear-gradient(90deg, #ffe45c, #f4d500);
-  box-shadow: 0 10px 22px rgba(10, 8, 30, .20);
+  background: #1f2937;
+  box-shadow: 0 10px 22px rgba(17, 24, 39, .20);
   transform: translateY(-1px);
 }
 
@@ -3901,8 +3914,8 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
 
 @media (max-width: 1200px) {
   .claw-login-card {
-    width: min(690px, calc(100vw - 40px));
-    min-height: 650px;
+    width: min(680px, calc(100vw - 40px));
+    min-height: 520px;
   }
 
   .claw-login-form-stack {
@@ -3924,11 +3937,11 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   }
 
   .claw-login-card {
-    width: calc(100vw - 32px);
+    width: calc(100vw - 28px);
     height: auto;
     min-height: 0;
     margin: auto 0;
-    padding: 58px 28px 42px;
+    padding: 54px 28px 28px;
     border-radius: 28px;
   }
 
@@ -3953,7 +3966,7 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   .claw-login-shape-upper-left,
   .claw-login-shape-right-waves {
     display: block;
-    opacity: .42;
+    opacity: .28;
   }
 
   .claw-login-shape-top-arc { top: -72px; left: 12%; width: 160px; }
@@ -3967,7 +3980,7 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
   }
 
   .claw-login-card {
-    padding: 54px 24px 36px;
+    padding: 52px 24px 28px;
     border-radius: 24px;
   }
 
