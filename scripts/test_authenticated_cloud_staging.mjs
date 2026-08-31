@@ -53,13 +53,28 @@ async function expectStatus(promise, expected, label) {
 }
 
 const runSuffix = crypto.randomBytes(5).toString("hex");
-const fixtureStart = new Date();
-fixtureStart.setUTCDate(fixtureStart.getUTCDate() + 365);
+const today = new Date().toISOString().slice(0, 10);
+async function selectPastFixtureStart() {
+  for (let daysBack = 14; daysBack <= 3650; daysBack += 7) {
+    const start = new Date(`${today}T00:00:00Z`);
+    start.setUTCDate(start.getUTCDate() - daysBack);
+    const first = start.toISOString().slice(0, 10);
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 6);
+    const last = end.toISOString().slice(0, 10);
+    const { data, error } = await service.from("daily_closings").select("id").gte("report_date", first).lte("report_date", last).limit(1);
+    if (error) throw error;
+    if (!(data || []).length) return start;
+  }
+  throw new Error("No collision-free past fixture window is available.");
+}
+const fixtureStart = await selectPastFixtureStart();
 const fixtureDate = offset => {
   const value = new Date(fixtureStart);
   value.setUTCDate(value.getUTCDate() + offset);
   return value.toISOString().slice(0, 10);
 };
+assert.ok(fixtureDate(6) <= today, "authenticated UAT fixtures must never use future dates");
 const users = {
   admin: { username: `STG Admin UAT ${runSuffix}`, role: "admin", outlets: [] },
   outletA: { username: `STG Outlet A UAT ${runSuffix}`, role: "outlet", outlets: ["STG-A"] },
@@ -111,6 +126,28 @@ async function removeFixtureData() {
     const { data, error } = await service.from("profiles").select("id").in("id", createdUserIds);
     if (error) throw error;
     assert.equal((data || []).length, 0, "temporary profiles and outlet access must cascade away with temporary Auth users");
+  });
+  await attempt("synthetic fixture zero-growth verification", async () => {
+    const entityIds = [...new Set([...createdUserIds, ...createdMachineIds, ...createdClosingIds, ...createdRefillEventIds])];
+    if (createdClosingIds.length) {
+      const { data, error } = await service.from("daily_closings").select("id").in("id", createdClosingIds);
+      if (error) throw error;
+      assert.equal((data || []).length, 0, "no created synthetic closings may remain after finally");
+    }
+    if (createdMachineIds.length) {
+      const { data, error } = await service.from("machines").select("id").in("id", createdMachineIds);
+      if (error) throw error;
+      assert.equal((data || []).length, 0, "no created synthetic machines may remain after finally");
+    }
+    if (entityIds.length) {
+      const { data, error } = await service.from("audit_log").select("id").in("entity_id", entityIds);
+      if (error) throw error;
+      assert.equal((data || []).length, 0, "no created synthetic audit rows may remain after finally");
+    }
+    for (const path of createdStoragePaths) {
+      const { error } = await service.storage.from("machine-style-images").download(path);
+      assert.ok(error, "no created synthetic Storage object may remain after finally");
+    }
   });
   if (failures.length) throw new Error(`Authenticated UAT cleanup failed: ${failures.join(" | ")}`);
 }
@@ -264,9 +301,23 @@ const voidedRefillProduct = voidReload.products.find(product => product.Product_
 assert.equal(voidedRefillProduct.Refill_Qty, 10, "reloaded void result must retain the recomputed refill aggregate");
 assert.equal(voidedRefillProduct.Qty_Used, 12, "reloaded void result must retain the recomputed Qty Used");
 assert.ok(!voidedRefillProduct.Refill_History_JSON.some(event => event.id === negativeRefillEvent.id), "reloaded active history must exclude the voided event");
-const missingCloserFinalize = await api(developer.access_token, "/api/closings/save", { method: "POST", body: { ...closingPayload, report_date: `${fixtureYear}-01-13`, closed_by: "", workflow_status: "Finalized" } });
+const blankFinalRefillPayload = { ...closingPayload, report_date: fixtureDate(5), closed_by: "", verified_by: "", machines: closingPayload.machines.map((machine, machineIndex) => ({ ...machine, products: machine.products.map((product, productIndex) => machineIndex === 0 && productIndex === 0 ? { ...product, final_qty: "", refill_history: [] } : product) })) };
+const blankFinalRefill = await expectStatus(api(developer.access_token, "/api/refills", { method: "POST", body: { closing_payload: blankFinalRefillPayload, machine_style_id: meterProducts[0].product_id, adjusted_by: "STG Blank Final Operator", delta_qty: 5 } }), 200, "refill with blank Final Qty");
+createdClosingIds.push(blankFinalRefill.closing_id);
+assert.equal(blankFinalRefill.product.refill_qty, 5, "blank Final Qty refill must preserve the signed adjustment");
+assert.equal(blankFinalRefill.product.qty_used, 0, "blank Final Qty refill must not count available stock as Qty Used");
+const blankFinalSaved = await expectStatus(api(developer.access_token, "/api/closings/save", { method: "POST", body: { ...blankFinalRefillPayload, closing_id: blankFinalRefill.closing_id, workflow_status: "Draft", machines: blankFinalRefillPayload.machines.map((machine, machineIndex) => ({ ...machine, products: machine.products.map((product, productIndex) => machineIndex === 0 && productIndex === 0 ? { ...product, final_qty: 9, refill_qty: 5, refill_history: [{ qty: 5, by: "STG Blank Final Operator" }] } : product) })) } }), 200, "draft save after blank Final Qty refill");
+assert.equal(blankFinalSaved.result.total_prizes_won, 7, "entered Final Qty must calculate Qty Used from Begin plus refill");
+const blankStaffDraftPayload = { ...closingPayload, report_date: fixtureDate(0), closed_by: "", verified_by: "" };
+const blankStaffDraft = await expectStatus(api(developer.access_token, "/api/closings/save", { method: "POST", body: { ...blankStaffDraftPayload, workflow_status: "Draft" } }), 200, "draft without Closed By");
+createdClosingIds.push(blankStaffDraft.closing_id);
+assert.equal(blankStaffDraft.workflow_status, "Draft", "draft with blank staff names must persist");
+const missingCloserFinalize = await api(developer.access_token, "/api/closings/save", { method: "POST", body: { ...blankStaffDraftPayload, closing_id: blankStaffDraft.closing_id, verified_by: "STG UAT Verifier", workflow_status: "Finalized" } });
 assert.equal(missingCloserFinalize.status, 400, "finalization must still require Closed By");
 assert.match(missingCloserFinalize.body.detail || "", /Closed By is required/i, "finalization must retain the relevant Closed By error");
+const missingVerifierFinalize = await api(developer.access_token, "/api/closings/save", { method: "POST", body: { ...blankStaffDraftPayload, closing_id: blankStaffDraft.closing_id, closed_by: "STG UAT Closer", workflow_status: "Finalized" } });
+assert.equal(missingVerifierFinalize.status, 400, "finalization must still require Verified By");
+assert.match(missingVerifierFinalize.body.detail || "", /Verified By is required/i, "finalization must retain the relevant Verified By error");
 const draft = await expectStatus(api(developer.access_token, "/api/closings/save", { method: "POST", body: { ...closingPayload, workflow_status: "Draft" } }), 200, "cloud draft save");
 createdClosingIds.push(draft.closing_id);
 const reloadedDraft = await expectStatus(api(developer.access_token, `/api/closings/${draft.closing_id}`), 200, "cloud draft reload");
@@ -310,6 +361,19 @@ assert.ok(!historyAfterVoid.records.some(row => row.Closing_ID === draft.closing
 const openingAfterVoid = await expectStatus(api(developer.access_token, `/api/new-closing?report_date=${fixtureDate(4)}`), 200, "opening after closing void");
 const voidExcludedMeter = openingAfterVoid.machines.find(machine => machine.machine_id === meterMachine.machine.Machine_ID);
 assert.equal(voidExcludedMeter.products.find(product => product.product_id === meterProducts[0].product_id).begin_qty, 10, "voided closing must not seed carry-forward quantities");
+const voidAudit = await service.from("daily_closings").select("id,status").eq("id", draft.closing_id).single();
+assert.ifError(voidAudit.error);
+assert.equal(voidAudit.data.status, "void", "voided closing must remain available for audit");
+const replacementOpening = await expectStatus(api(developer.access_token, `/api/new-closing?report_date=${fixtureDate(2)}`), 200, "same-date Start Shift after void");
+assert.equal(replacementOpening.existing_closing_id, undefined, "voided closing must not block a same-date replacement shift");
+const replacementDraft = await expectStatus(api(developer.access_token, "/api/closings/save", { method: "POST", body: { ...closingPayload, workflow_status: "Draft" } }), 200, "same-date replacement draft");
+createdClosingIds.push(replacementDraft.closing_id);
+assert.notEqual(replacementDraft.closing_id, draft.closing_id, "replacement must create a new non-void closing");
+const replacementFinal = await expectStatus(api(developer.access_token, "/api/closings/save", { method: "POST", body: { ...closingPayload, closing_id: replacementDraft.closing_id, workflow_status: "Finalized" } }), 200, "same-date replacement finalization");
+assert.equal(replacementFinal.workflow_status, "Finalized", "replacement closing must finalize");
+const historyAfterReplacement = await expectStatus(api(developer.access_token, "/api/history"), 200, "history after same-date replacement");
+assert.ok(!historyAfterReplacement.records.some(row => row.Closing_ID === draft.closing_id), "normal history must continue to exclude the old voided closing");
+assert.ok(historyAfterReplacement.records.some(row => row.Closing_ID === replacementDraft.closing_id), "normal history must include the replacement finalized closing");
 
 } finally {
   await removeFixtureData();

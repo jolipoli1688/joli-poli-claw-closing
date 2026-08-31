@@ -139,7 +139,11 @@ function calculate(payload: any) {
     const isManual = String(machine.meter_mode || "").toLowerCase() === "manual" || (machine.begin_coin_meter === "" && machine.final_coin_meter === "");
     const used = isManual ? integer(machine.manual_coins_used ?? machine.coins_used) : integer(machine.final_coin_meter) - integer(machine.begin_coin_meter);
     const products = machine.products || machine.Products || (machine.barcodes || []).map((barcode: any) => ({ barcode }));
-    const prizes = products.reduce((sum: number, product: any) => sum + integer(product.begin_qty ?? machine.begin_prize) + integer(product.refill_qty ?? product.refill_prize) - integer(product.final_qty ?? machine.final_prize), 0);
+    const prizes = products.reduce((sum: number, product: any) => {
+      const finalQty = product.final_qty ?? product.final_prize;
+      if (finalQty === "" || finalQty === null || finalQty === undefined) return sum;
+      return sum + integer(product.begin_qty ?? machine.begin_prize) + integer(product.refill_qty ?? product.refill_prize) - integer(finalQty);
+    }, 0);
     return { used, prizes };
   });
   const machineCoins = rows.reduce((sum: number, row: any) => sum + row.used, 0);
@@ -148,9 +152,9 @@ function calculate(payload: any) {
   return { total_sales: Number(totalSales.toFixed(2)), coins_dispensed: coinsDispensed, machine_coins_used: machineCoins, coin_variance: variance, total_prizes_won: prizes, average_sale_value_per_coin: coinsDispensed > 0 ? totalSales / coinsDispensed : 0, average_coins_per_prize: prizes > 0 ? machineCoins / prizes : 0, average_revenue_per_prize: prizes > 0 ? totalSales / prizes : 0, closing_status: variance === 0 ? "Balanced" : "Unbalanced" };
 }
 
-async function saveClosing(ctx: Context, payload: any, options: { requireClosedBy?: boolean } = {}) {
+async function saveClosing(ctx: Context, payload: any) {
   const workflow = String(payload.workflow_status || "Draft").toLowerCase();
-  if (options.requireClosedBy !== false && !payload.closed_by) throw new Error("Closed By is required.");
+  if (workflow === "finalized" && !payload.closed_by) throw new Error("Closed By is required.");
   if (workflow === "finalized" && (!canFinalize(ctx) || !payload.verified_by)) throw new Error(!canFinalize(ctx) ? "Not authorized to finalize." : "Verified By is required before finalizing.");
   const settings = await ctx.admin.from("store_settings").select("*").eq("store_id", ctx.store.id).single();
   if (settings.error) throw new Error(settings.error.message);
@@ -212,7 +216,7 @@ async function recordRefill(ctx: Context, body: any) {
   let closingId = String(body.closing_id || body.closing_payload?.closing_id || "");
   if (!closingId) {
     if (!body.closing_payload || typeof body.closing_payload !== "object") throw new Error("A draft closing is required before recording an adjustment.");
-    const created = await saveClosing(ctx, { ...body.closing_payload, closing_id: "", workflow_status: "Draft" }, { requireClosedBy: false });
+    const created = await saveClosing(ctx, { ...body.closing_payload, closing_id: "", workflow_status: "Draft" });
     closingId = created.closing_id;
   }
 
@@ -238,7 +242,9 @@ async function recordRefill(ctx: Context, body: any) {
   if (availableQty < 0) throw new Error("This adjustment would make available stock negative.");
   const created = await ctx.admin.from("refill_events").insert({ closing_product_entry_id: product.data.id, delta_qty: quantity, created_by: ctx.userId, created_by_name_snapshot: adjustedBy }).select("*").single();
   if (created.error) throw new Error(created.error.message);
-  const productUpdate = await ctx.admin.from("closing_product_entries").update({ refill_qty: nextRefillQty, qty_used: availableQty - integer(product.data.final_qty), updated_at: new Date().toISOString() }).eq("id", product.data.id);
+  const finalQty = product.data.final_qty;
+  const qtyUsed = finalQty === null || finalQty === undefined ? 0 : availableQty - integer(finalQty);
+  const productUpdate = await ctx.admin.from("closing_product_entries").update({ refill_qty: nextRefillQty, qty_used: qtyUsed, updated_at: new Date().toISOString() }).eq("id", product.data.id);
   if (productUpdate.error) {
     // This is a failed, never-returned create rather than a user-requested
     // void; remove the compensating orphan so the event ledger stays atomic.
@@ -247,7 +253,7 @@ async function recordRefill(ctx: Context, body: any) {
   }
   const events = await ctx.admin.from("refill_events").select("*").eq("closing_product_entry_id", product.data.id).is("voided_at", null).order("created_at");
   if (events.error) throw new Error(events.error.message);
-  return { ok: true, closing_id: closingId, product: { refill_qty: nextRefillQty, qty_used: availableQty - integer(product.data.final_qty), refill_history: refillHistory(events.data || []) } };
+  return { ok: true, closing_id: closingId, product: { refill_qty: nextRefillQty, qty_used: qtyUsed, refill_history: refillHistory(events.data || []) } };
 }
 
 async function serve(req: Request) {
@@ -299,7 +305,7 @@ async function serve(req: Request) {
       const today = new Date().toISOString().slice(0, 10);
       const reportDate = String(url.searchParams.get("report_date") || today);
       if (!/^\d{4}-\d{2}-\d{2}$/.test(reportDate) || reportDate > today) return fail("Start Shift is available only for today or an earlier date.", 400);
-      const active = await ctx.admin.from("daily_closings").select("id").eq("store_id", ctx.store.id).eq("report_date", reportDate).eq("status", "draft").maybeSingle();
+      const active = await ctx.admin.from("daily_closings").select("id,status").eq("store_id", ctx.store.id).eq("report_date", reportDate).neq("status", "void").maybeSingle();
       if (active.error) throw new Error(active.error.message);
       if (active.data?.id) return json({ report_date: reportDate, outlet: ctx.store.name, existing_closing_id: active.data.id, machines: [] });
       const [machines, previous] = await Promise.all([readMachines(ctx, true), ctx.admin.from("daily_closings").select("id").eq("store_id", ctx.store.id).eq("status", "finalized").lt("report_date", reportDate).order("report_date", { ascending: false }).limit(1).maybeSingle()]);
