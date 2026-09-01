@@ -16,7 +16,7 @@ assert.match(edge, /active\?\.status === "draft" \? active\.id : null/, "finaliz
 assert.match(edge, /if \(active\?\.status === "draft"\) closingId = active\.id/, "refill without closing_id must reuse an existing draft");
 assert.doesNotMatch(edge.match(/async function recordRefill[\s\S]*?\n}\n\nasync function serve/)?.[0] || "", /insert\(record\)/, "refill must not blindly create a second same-date draft");
 assert.match(edge, /from\("closing_product_entries"\)\.update\(productRecord\)/, "draft autosave must preserve existing product rows and their refill ledger");
-assert.match(app, /setTimeout\(\(\) => \{ void flushAutosaveV2179\(\); \}, 850\)/, "operational edits must debounce autosave");
+assert.match(app, /setTimeout\(\(\) => \{ void flushAutosaveV2179\(\)\.catch\(\(\) => \{\}\); \}, 850\)/, "operational edits must debounce autosave without an unhandled retry error");
 assert.match(app, /autosavePromiseV2179/, "autosave must permit only one in-flight draft write");
 assert.match(app, /autosaveQueuedV2179/, "edits during a save must queue the newer draft state");
 assert.match(app, /await flushAutosaveV2179\(\); openClosingReviewV2179DailyWorkflow/, "Review must flush pending autosave");
@@ -24,6 +24,9 @@ assert.match(app, /await flushAutosaveV2179\(\); return showRefillProductModalV2
 assert.match(app, /Pending autosave changes will be saved before this shift is closed/, "Close Shift must flush pending autosave");
 assert.match(app, /closingAutosaveStatusV2179/, "Save Draft must be replaced by an autosave status indicator");
 assert.match(app, /Save Now/, "autosave failure recovery must offer an explicit Save Now action");
+assert.match(app, /data-autosave-error/, "autosave failures must reuse one visible error toast");
+assert.match(app, /autosaveQueuedV2179 && succeeded/, "failed autosaves must not enter a tight queued retry loop");
+assert.match(app, /clearAutosaveErrorV2179\(\)/, "a successful autosave must clear its prior failure state");
 assert.match(app, /Start Shift creates today/, "Start Shift copy must describe an immediate server-side draft");
 assert.doesNotMatch(app.slice(app.lastIndexOf("/* v2.1.79")), /New Closing|New closing/, "the current operational layer must not use New Closing wording");
 

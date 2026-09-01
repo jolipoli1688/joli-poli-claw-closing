@@ -91,7 +91,24 @@ function money(value) { return `$${Number(value || 0).toLocaleString(undefined, 
 function number(value, digits = 0) { return Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }); }
 function isoToday() { return new Date().toISOString().slice(0, 10); }
 function monthToday() { return new Date().toISOString().slice(0, 7); }
-function dateDisplay(value) { const text = String(value || ""); const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/); return match ? `${match[3]}-${match[2]}-${match[1]}` : text; }
+function displayToIsoDate(value) {
+  const text = String(value || "").trim();
+  let match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  let year, month, day;
+  if (match) [, year, month, day] = match;
+  else {
+    match = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (!match) return "";
+    [, day, month, year] = match;
+  }
+  const y = Number(year), m = Number(month), d = Number(day);
+  const candidate = new Date(Date.UTC(y, m - 1, d));
+  if (y < 1000 || candidate.getUTCFullYear() !== y || candidate.getUTCMonth() !== m - 1 || candidate.getUTCDate() !== d) return "";
+  return `${year}-${month}-${day}`;
+}
+function isoToDisplayDate(value) { const iso = displayToIsoDate(value); return iso ? `${iso.slice(8, 10)}-${iso.slice(5, 7)}-${iso.slice(0, 4)}` : String(value || ""); }
+function canonicalClosingDate(value) { const iso = displayToIsoDate(value); if (!iso) throw new Error("Report Date must be a valid calendar date."); return iso; }
+function dateDisplay(value) { return isoToDisplayDate(value); }
 function escapeHtml(value) { return String(value ?? "").replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c])); }
 
 function machineBarcodes(machine) {
@@ -1029,10 +1046,11 @@ function onClosingField(event) {
 let openingReloadTimer = null;
 function scheduleOpeningReload(value) {
   clearTimeout(openingReloadTimer);
-  if (!/^(\d{2}-\d{2}-\d{4}|\d{4}-\d{2}-\d{2})$/.test(String(value).trim())) return;
+  const reportDate = displayToIsoDate(value);
+  if (!reportDate) return;
   openingReloadTimer = setTimeout(async () => {
     try {
-      const data = await api(`/api/new-closing?report_date=${encodeURIComponent(value)}`);
+      const data = await api(`/api/new-closing?report_date=${encodeURIComponent(reportDate)}`);
       state.closing.machines = data.machines;
       renderClosing();
     } catch (error) { toast("Invalid date", error.message, "error"); }
@@ -1111,7 +1129,7 @@ function closingPayload(workflowStatus) {
   return {
     closing_id: state.closingId,
     workflow_status: workflowStatus,
-    report_date: state.closing.report_date,
+    report_date: canonicalClosingDate(state.closing.report_date),
     outlet: state.closing.outlet,
     closed_by: state.closing.closed_by,
     verified_by: state.closing.verified_by,
@@ -2478,11 +2496,7 @@ showMachineCodesModal = async function(closingMachine) {
 
 /* v2.1.22 — streamlined Daily Closing workflow + controlled report date */
 function reportDateIso(value) {
-  const text = String(value || "").trim();
-  let match = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-  if (match) return `${match[3]}-${match[2]}-${match[1]}`;
-  match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return match ? text : isoToday();
+  return displayToIsoDate(value) || isoToday();
 }
 
 function reportDateDisplay(value) {
@@ -4630,6 +4644,21 @@ let autosavePromiseV2179 = null;
 let autosaveQueuedV2179 = false;
 let autosaveDirtyV2179 = false;
 let autosaveRevisionV2179 = 0;
+let autosaveFailureV2179 = false;
+
+function showAutosaveErrorV2179(message) {
+  const root = document.getElementById("toastRoot");
+  const existing = root?.querySelector('[data-autosave-error="true"]');
+  if (existing) {
+    existing.querySelector("p").textContent = message;
+    return;
+  }
+  toast("Autosave failed", message, "error");
+  const created = root?.lastElementChild;
+  if (created) created.dataset.autosaveError = "true";
+}
+
+function clearAutosaveErrorV2179() { document.querySelector('#toastRoot [data-autosave-error="true"]')?.remove(); }
 
 function autosaveIndicatorV2179(value) {
   const target = document.getElementById("closingAutosaveStatusV2179");
@@ -4644,35 +4673,40 @@ function scheduleAutosaveV2179() {
   autosaveRevisionV2179 += 1;
   clearTimeout(autosaveTimerV2179);
   autosaveIndicatorV2179("Saving...");
-  autosaveTimerV2179 = setTimeout(() => { void flushAutosaveV2179(); }, 850);
+  autosaveTimerV2179 = setTimeout(() => { void flushAutosaveV2179().catch(() => {}); }, 850);
 }
 
 async function persistActiveDraftV2179() {
   if (!state.closing || state.closingReadOnly || !autosaveDirtyV2179) return;
   if (autosavePromiseV2179) { autosaveQueuedV2179 = true; return autosavePromiseV2179; }
   const revision = autosaveRevisionV2179;
+  let succeeded = false;
   autosaveDirtyV2179 = false;
   autosaveIndicatorV2179("Saving...");
   autosavePromiseV2179 = api("/api/closings/save", { method: "POST", body: JSON.stringify(closingPayload("Draft")) })
     .then(result => {
       state.closingId = result.closing_id;
       state.closingStatus = result.workflow_status;
+      autosaveFailureV2179 = false;
+      clearAutosaveErrorV2179();
       if (revision === autosaveRevisionV2179) autosaveIndicatorV2179("Saved");
+      succeeded = true;
       return result;
     })
     .catch(error => {
       autosaveDirtyV2179 = true;
+      autosaveFailureV2179 = true;
       autosaveIndicatorV2179("Save failed");
-      toast("Autosave failed", error.message || "Your changes are still in this browser. Try Save Now.", "error");
+      showAutosaveErrorV2179(error.message || "Your changes are still in this browser. Try Save Now.");
       throw error;
     })
     .finally(() => { autosavePromiseV2179 = null; });
   try { return await autosavePromiseV2179; }
   finally {
-    if (autosaveQueuedV2179 || autosaveDirtyV2179) {
+    if (autosaveQueuedV2179 && succeeded) {
       autosaveQueuedV2179 = false;
       await persistActiveDraftV2179();
-    }
+    } else autosaveQueuedV2179 = false;
   }
 }
 
@@ -4761,7 +4795,7 @@ renderClosing = function() {
     now.className = "btn btn-ghost btn-compact";
     now.type = "button";
     now.textContent = "Save Now";
-    now.onclick = () => { void flushAutosaveV2179(); };
+    now.onclick = () => { void flushAutosaveV2179().catch(() => {}); };
     save.replaceWith(status, now);
   }
 };

@@ -153,9 +153,18 @@ function calculate(payload: any) {
 }
 
 function validShiftDate(value: unknown) {
-  const reportDate = String(value || "").slice(0, 10);
+  const text = String(value || "").trim();
+  let match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  let year = "", month = "", day = "";
+  if (match) [, year, month, day] = match;
+  else {
+    match = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (match) [, day, month, year] = match;
+  }
+  const reportDate = `${year}-${month}-${day}`;
+  const parsed = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
   const today = new Date().toISOString().slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(reportDate) || reportDate > today) throw new Error("Start Shift is available only for today or an earlier date.");
+  if (!year || Number(year) < 1000 || parsed.getUTCFullYear() !== Number(year) || parsed.getUTCMonth() !== Number(month) - 1 || parsed.getUTCDate() !== Number(day) || reportDate > today) throw new Error("Start Shift is available only for a valid date that is today or earlier.");
   return reportDate;
 }
 
