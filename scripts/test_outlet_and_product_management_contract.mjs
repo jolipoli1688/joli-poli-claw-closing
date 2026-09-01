@@ -28,15 +28,14 @@ assert.match(app, /void openClosingReview\(\)/, "Close Shift must enter review r
 assert.match(edge, /path === "\/api\/outlets" && req\.method === "GET"/, "Developer outlet list route is required");
 assert.match(edge, /path === "\/api\/outlets" && req\.method === "POST"/, "Developer outlet create route is required");
 assert.match(edge, /path\.startsWith\("\/api\/outlets\/"\) && req\.method === "PATCH"/, "Developer outlet update route is required");
+assert.match(edge, /path\.startsWith\("\/api\/outlets\/"\) && req\.method === "DELETE"/, "Developer outlet delete route is required");
 assert.match(edge, /normalizeOutletCode/, "outlet codes must be normalized");
 assert.match(schema, /create table public\.stores[\s\S]*code text not null unique/, "outlet codes must remain uniquely enforced by the schema");
-assert.match(edge, /The last active outlet cannot be deactivated/, "last active outlet must be protected");
-assert.match(edge, /active draft shift/, "outlet deactivation must protect active drafts");
 assert.match(edge, /settings_copied_from_store_id/, "new outlet settings must copy an active store default");
 assert.match(users, /data-admin-tab="outlets"/, "User Management must include an Outlets tab");
 assert.match(users, /Add Outlet/, "Outlets tab must create outlets");
-assert.match(users, /Show inactive/, "Outlets tab must default-hide inactive outlets");
-assert.match(users, /cannot have an active draft shift/, "UI must explain outlet deactivation safety");
+assert.match(users, /Delete Outlet Permanently/, "Outlets tab must expose permanent deletion separately from editing");
+assert.match(users, /Type <strong>\$\{esc\(outlet\.code\)\}<\/strong> to confirm/, "Outlets tab must require exact-code confirmation");
 assert.match(cleanup, /STG-A-RED/, "cleanup must name the first exact seed barcode");
 assert.match(cleanup, /STG-A-BLUE/, "cleanup must name the second exact seed barcode");
 assert.match(cleanup, /CLAW_RETIRE_STG_A_SEED_STYLES/, "cleanup must require explicit confirmation");

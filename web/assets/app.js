@@ -4973,3 +4973,25 @@ renderClosing = function() {
     review.onclick = () => { void openClosingReview(); };
   }
 };
+
+/* v2.1.82 — deleting the active cloud outlet must discard its local draft
+   state before bootstrap selects a remaining usable outlet. */
+async function resetAfterDeletedOutletV2182(event) {
+  if (!event.detail?.wasCurrent) return;
+  invalidateAutosaveForVoidV2181();
+  state.closingId = null;
+  state.closingStatus = null;
+  state.closingReadOnly = false;
+  state.closingReview = false;
+  state.closing = null;
+  await reloadBootstrapAfterVoidV2181();
+  if (state.page === "closing") await ensureClosingPage();
+  const nextOutlet = state.bootstrap?.cloud_context?.active_store?.name || state.bootstrap?.cloud_context?.active_store?.code;
+  toast("Outlet deleted", nextOutlet ? `Switched to ${nextOutlet}.` : "Workspace reset.");
+}
+
+window.addEventListener("claw-outlet-deleted", event => {
+  void resetAfterDeletedOutletV2182(event).catch(error => {
+    toast("Outlet deleted", error.message || "Refresh the workspace to continue.", "error");
+  });
+});

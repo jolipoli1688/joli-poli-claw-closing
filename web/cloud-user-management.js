@@ -118,27 +118,60 @@
     };
 
     const renderOutlets = () => {
-      const rows = state.outlets.filter(outlet => state.showInactiveOutlets || outlet.status === "active");
-      outletsPanel.innerHTML = `<div class="claw-users-toolbar"><label class="claw-inactive-toggle"><input id="clawOutletInactive" type="checkbox" ${state.showInactiveOutlets ? "checked" : ""}> <span>Show inactive</span></label><button id="clawOutletAdd" class="btn btn-primary claw-users-add" type="button">+ Add Outlet</button></div><p class="claw-outlet-help">Inactive outlets cannot be assigned to users. Deactivation is blocked while an active draft shift exists.</p><div class="claw-users-table-wrap"><table class="claw-users-table"><thead><tr><th>Code</th><th>Name</th><th>Assigned Users</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(outlet => `<tr><td><strong>${esc(outlet.code)}</strong></td><td>${esc(outlet.name)}</td><td>${Number(outlet.assigned_users || 0)}</td><td><span class="claw-status-badge ${outlet.status === "active" ? "is-active" : "is-inactive"}">${esc(label(outlet.status))}</span></td><td class="claw-users-actions"><button class="btn btn-secondary btn-compact" data-outlet-id="${esc(outlet.id)}" type="button">Edit</button></td></tr>`).join("") || '<tr><td colspan="5" class="claw-users-empty">No outlets match this view.</td></tr>'}</tbody></table></div>`;
-      outletsPanel.querySelector("#clawOutletInactive").onchange = event => { state.showInactiveOutlets = event.target.checked; renderOutlets(); };
+      const rows = state.outlets;
+      outletsPanel.innerHTML = `<div class="claw-users-toolbar"><button id="clawOutletAdd" class="btn btn-primary claw-users-add" type="button">+ Add Outlet</button></div><p class="claw-outlet-help">Delete Outlet permanently removes the selected outlet and its data. It cannot be undone.</p><div class="claw-users-table-wrap"><table class="claw-users-table"><thead><tr><th>Code</th><th>Name</th><th>Assigned Users</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(outlet => `<tr><td><strong>${esc(outlet.code)}</strong></td><td>${esc(outlet.name)}</td><td>${Number(outlet.assigned_users || 0)}</td><td><span class="claw-status-badge ${outlet.status === "active" ? "is-active" : "is-inactive"}">${esc(label(outlet.status))}</span></td><td class="claw-users-actions"><button class="btn btn-secondary btn-compact" data-outlet-edit-id="${esc(outlet.id)}" type="button">Edit</button><button class="btn btn-danger btn-compact" data-outlet-delete-id="${esc(outlet.id)}" type="button">Delete</button></td></tr>`).join("") || '<tr><td colspan="5" class="claw-users-empty">No outlets are available.</td></tr>'}</tbody></table></div>`;
       outletsPanel.querySelector("#clawOutletAdd").onclick = () => openOutletForm(null);
-      outletsPanel.querySelectorAll("[data-outlet-id]").forEach(button => { button.onclick = () => openOutletForm(state.outlets.find(outlet => outlet.id === button.dataset.outletId)); });
+      outletsPanel.querySelectorAll("[data-outlet-edit-id]").forEach(button => { button.onclick = () => openOutletForm(state.outlets.find(outlet => outlet.id === button.dataset.outletEditId)); });
+      outletsPanel.querySelectorAll("[data-outlet-delete-id]").forEach(button => { button.onclick = () => openDeleteOutletForm(state.outlets.find(outlet => outlet.id === button.dataset.outletDeleteId)); });
     };
     const refreshOutlets = async () => { state.outlets = await request("/api/outlets?include_inactive=true"); state.stores = state.outlets.filter(outlet => outlet.status === "active"); };
     const openOutletForm = outlet => {
       const editing = Boolean(outlet);
       const formLayer = document.createElement("div");
       formLayer.className = "claw-user-form-layer";
-      formLayer.innerHTML = `<div class="claw-user-form-card" role="dialog" aria-modal="true"><header><div><h3>${editing ? "Edit Outlet" : "Add Outlet"}</h3><p>${editing ? "Rename or change the outlet status." : "Settings are copied from the active outlet."}</p></div><button type="button" class="claw-icon-button" data-close-form aria-label="Close">×</button></header><form><div class="claw-user-form-body">${editing ? `<label class="claw-form-field">Code<input value="${esc(outlet.code)}" readonly></label>` : '<label class="claw-form-field">Code<input name="code" required maxlength="32" placeholder="OUTLET-01"></label>'}<label class="claw-form-field">Name<input name="name" required maxlength="80" value="${esc(outlet?.name || "")}"></label>${editing ? `<label class="claw-form-field">Status<select name="status"><option value="active" ${outlet.status === "active" ? "selected" : ""}>Active</option><option value="inactive" ${outlet.status === "inactive" ? "selected" : ""}>Inactive</option></select></label>` : ""}<p class="claw-user-form-error" aria-live="polite"></p></div><footer><button type="button" class="btn btn-secondary" data-close-form>Cancel</button><button class="btn btn-primary" type="submit">${editing ? "Save Changes" : "Create Outlet"}</button></footer></form></div>`;
+      formLayer.innerHTML = `<div class="claw-user-form-card" role="dialog" aria-modal="true"><header><div><h3>${editing ? "Edit Outlet" : "Add Outlet"}</h3><p>${editing ? "Rename this outlet. Permanent deletion is a separate action." : "Settings are copied from the active outlet."}</p></div><button type="button" class="claw-icon-button" data-close-form aria-label="Close">×</button></header><form><div class="claw-user-form-body">${editing ? `<label class="claw-form-field">Code<input value="${esc(outlet.code)}" readonly></label>` : '<label class="claw-form-field">Code<input name="code" required maxlength="32" placeholder="OUTLET-01"></label>'}<label class="claw-form-field">Name<input name="name" required maxlength="80" value="${esc(outlet?.name || "")}"></label><p class="claw-user-form-error" aria-live="polite"></p></div><footer><button type="button" class="btn btn-secondary" data-close-form>Cancel</button><button class="btn btn-primary" type="submit">${editing ? "Save Changes" : "Create Outlet"}</button></footer></form></div>`;
       document.body.appendChild(formLayer);
       const closeForm = () => formLayer.remove();
       formLayer.querySelectorAll("[data-close-form]").forEach(button => { button.onclick = closeForm; });
       formLayer.querySelector("form").onsubmit = async event => {
-        event.preventDefault(); const form = new FormData(event.currentTarget); const payload = editing ? { name: form.get("name"), status: form.get("status") } : { code: form.get("code"), name: form.get("name") }; const error = formLayer.querySelector(".claw-user-form-error");
-        if (editing && payload.status === "inactive" && !window.confirm("Deactivate this outlet? It will disappear from user assignment and cannot have an active draft shift.")) return;
+        event.preventDefault(); const form = new FormData(event.currentTarget); const payload = editing ? { name: form.get("name") } : { code: form.get("code"), name: form.get("name") }; const error = formLayer.querySelector(".claw-user-form-error");
         try { await request(editing ? `/api/outlets/${outlet.id}` : "/api/outlets", { method: editing ? "PATCH" : "POST", body: JSON.stringify(payload) }); await refreshOutlets(); closeForm(); renderOutlets(); root.querySelector("#clawUserManagementNotice").textContent = editing ? "Outlet changes saved." : "Outlet created."; } catch (cause) { error.textContent = cause.message || "The outlet could not be saved."; }
       };
       formLayer.querySelector("input:not([readonly])")?.focus();
+    };
+    const openDeleteOutletForm = outlet => {
+      if (!outlet) return;
+      const formLayer = document.createElement("div");
+      formLayer.className = "claw-user-form-layer";
+      formLayer.innerHTML = `<div class="claw-user-form-card" role="dialog" aria-modal="true" aria-labelledby="clawDeleteOutletTitle"><header><div><h3 id="clawDeleteOutletTitle">Delete Outlet Permanently</h3><p>This cannot be undone. All closing, machine, product, refill, settings, assignment, and audit data for ${esc(outlet.code)} will be deleted.</p></div><button type="button" class="claw-icon-button" data-close-form aria-label="Close">×</button></header><form><div class="claw-user-form-body"><label class="claw-form-field">Type <strong>${esc(outlet.code)}</strong> to confirm<input name="confirm_code" required autocomplete="off" spellcheck="false"></label><p class="claw-user-form-error" aria-live="polite"></p></div><footer><button type="button" class="btn btn-secondary" data-close-form>Cancel</button><button class="btn btn-danger" type="submit">Delete Outlet Permanently</button></footer></form></div>`;
+      document.body.appendChild(formLayer);
+      const closeForm = () => formLayer.remove();
+      formLayer.querySelectorAll("[data-close-form]").forEach(button => { button.onclick = closeForm; });
+      formLayer.addEventListener("click", event => { if (event.target === formLayer) closeForm(); });
+      formLayer.querySelector("form").onsubmit = async event => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        const confirmCode = String(form.get("confirm_code") || "");
+        const error = formLayer.querySelector(".claw-user-form-error");
+        error.textContent = "";
+        if (confirmCode !== outlet.code) { error.textContent = `Type ${outlet.code} exactly to confirm permanent deletion.`; return; }
+        const submit = formLayer.querySelector("button[type=submit]");
+        submit.disabled = true;
+        try {
+          const result = await request(`/api/outlets/${outlet.id}`, { method: "DELETE", body: JSON.stringify({ confirm_code: confirmCode }) });
+          const wasCurrent = window.clawCloudBootstrap?.cloud_context?.active_store?.id === outlet.id;
+          await refreshOutlets();
+          closeForm();
+          renderOutlets();
+          const failed = Array.isArray(result.storage_cleanup_failed_paths) ? result.storage_cleanup_failed_paths.length : 0;
+          root.querySelector("#clawUserManagementNotice").textContent = failed ? `Outlet permanently deleted. ${failed} image object${failed === 1 ? "" : "s"} could not be removed.` : "Outlet permanently deleted.";
+          window.dispatchEvent(new CustomEvent("claw-outlet-deleted", { detail: { outletId: outlet.id, wasCurrent } }));
+        } catch (cause) {
+          error.textContent = cause.message || "The outlet could not be permanently deleted.";
+          submit.disabled = false;
+        }
+      };
+      formLayer.querySelector("input[name=confirm_code]")?.focus();
     };
     tabs.querySelectorAll("[data-admin-tab]").forEach(button => { button.onclick = () => { const outletsTab = button.dataset.adminTab === "outlets"; usersPanel.hidden = outletsTab; outletsPanel.hidden = !outletsTab; tabs.querySelectorAll("[data-admin-tab]").forEach(tab => tab.classList.toggle("is-selected", tab === button)); if (outletsTab) renderOutlets(); }; });
     root.querySelector("#clawUserSearch").addEventListener("input", event => { state.search = event.target.value; renderRows(); });
