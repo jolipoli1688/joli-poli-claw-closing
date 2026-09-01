@@ -2973,7 +2973,7 @@ renderClosing = function() {
 
   renderReviewTopActions(`<button class="btn btn-secondary" id="saveDraftBtn">${icon("file", 16)} Save Draft</button><button class="btn btn-success" id="reviewClosingBtn">${icon("check", 16)} Review Closing</button>`);
   const draft = document.getElementById("saveDraftBtn");
-  const review = document.getElementById("reviewClosingBtn");
+  const review = document.getElementById("reviewClosingBtn") || document.getElementById("closeShiftBtnV2180");
   if (draft) draft.onclick = () => saveClosing("Draft");
   if (review) review.onclick = openClosingReview;
 };
@@ -4676,6 +4676,7 @@ let autosaveQueuedV2179 = false;
 let autosaveDirtyV2179 = false;
 let autosaveRevisionV2179 = 0;
 let autosaveFailureV2179 = false;
+let autosaveGenerationV2181 = 0;
 
 function showAutosaveErrorV2179(message) {
   const root = document.getElementById("toastRoot");
@@ -4692,10 +4693,10 @@ function showAutosaveErrorV2179(message) {
 function clearAutosaveErrorV2179() { document.querySelector('#toastRoot [data-autosave-error="true"]')?.remove(); }
 
 function autosaveIndicatorV2179(value) {
-  const target = document.getElementById("closingAutosaveStatusV2179");
-  if (!target) return;
-  target.textContent = value;
-  target.dataset.state = value.toLowerCase().replace(/\s+/g, "-");
+  document.querySelectorAll("[data-closing-autosave-status]").forEach(target => {
+    target.textContent = value;
+    target.dataset.state = value.toLowerCase().replace(/\s+/g, "-");
+  });
 }
 
 function scheduleAutosaveV2179() {
@@ -4711,11 +4712,14 @@ async function persistActiveDraftV2179() {
   if (!state.closing || state.closingReadOnly || !autosaveDirtyV2179) return;
   if (autosavePromiseV2179) { autosaveQueuedV2179 = true; return autosavePromiseV2179; }
   const revision = autosaveRevisionV2179;
+  const generation = autosaveGenerationV2181;
+  const closingId = state.closingId;
   let succeeded = false;
   autosaveDirtyV2179 = false;
   autosaveIndicatorV2179("Saving...");
-  autosavePromiseV2179 = api("/api/closings/save", { method: "POST", body: JSON.stringify(closingPayload("Draft")) })
+  const tracked = api("/api/closings/save", { method: "POST", body: JSON.stringify(closingPayload("Draft")) })
     .then(result => {
+      if (generation !== autosaveGenerationV2181 || closingId !== state.closingId) return result;
       state.closingId = result.closing_id;
       state.closingStatus = result.workflow_status;
       autosaveFailureV2179 = false;
@@ -4725,14 +4729,16 @@ async function persistActiveDraftV2179() {
       return result;
     })
     .catch(error => {
+      if (generation !== autosaveGenerationV2181 || closingId !== state.closingId) return undefined;
       autosaveDirtyV2179 = true;
       autosaveFailureV2179 = true;
       autosaveIndicatorV2179("Save failed");
       showAutosaveErrorV2179(error.message || "Your changes are still in this browser. Try Save Now.");
       throw error;
     })
-    .finally(() => { autosavePromiseV2179 = null; });
-  try { return await autosavePromiseV2179; }
+    .finally(() => { if (autosavePromiseV2179 === tracked) autosavePromiseV2179 = null; });
+  autosavePromiseV2179 = tracked;
+  try { return await tracked; }
   finally {
     if (autosaveQueuedV2179 && succeeded) {
       autosaveQueuedV2179 = false;
@@ -4820,6 +4826,7 @@ renderClosing = function() {
     const status = document.createElement("span");
     status.id = "closingAutosaveStatusV2179";
     status.className = "closing-autosave-status";
+    status.dataset.closingAutosaveStatus = "true";
     status.textContent = autosaveDirtyV2179 ? "Saving..." : "Saved";
     const now = document.createElement("button");
     now.id = "saveNowBtnV2179";
@@ -4876,4 +4883,82 @@ renderClosing = function() {
   review.innerHTML = `${icon("check", 16)} Close Shift`;
   review.title = "Save this active draft, then review it before final confirmation.";
   review.onclick = () => { void openClosingReview(); };
+};
+
+/* v2.1.81 — current-draft actions must survive autosave and draft recovery. */
+function invalidateAutosaveForVoidV2181() {
+  autosaveGenerationV2181 += 1;
+  clearTimeout(autosaveTimerV2179);
+  autosaveTimerV2179 = null;
+  autosaveQueuedV2179 = false;
+  autosaveDirtyV2179 = false;
+  autosaveFailureV2179 = false;
+  // An in-flight request cannot be cancelled reliably, so its generation is
+  // invalidated and it may no longer change client state when it settles.
+  autosavePromiseV2179 = null;
+}
+
+async function reloadBootstrapAfterVoidV2181() {
+  state.bootstrap = await api("/api/bootstrap");
+  state.appSettings = state.bootstrap.settings || {};
+  state.machines = state.bootstrap.machines || [];
+  if (isCloudStaging()) {
+    window.clawCloudBootstrap = state.bootstrap;
+    window.dispatchEvent(new CustomEvent("claw-cloud-bootstrap", { detail: state.bootstrap }));
+  }
+}
+
+function showVoidCurrentShiftV2181() {
+  const targetClosingId = String(state.closingId || "");
+  if (!targetClosingId || !state.closing || state.closingReadOnly) return;
+  showModal(
+    "Void this shift?",
+    `<p class="void-current-shift-copy">This removes the current draft from normal operation.<br>Historical audit data will be retained.</p><div class="field"><label for="voidCurrentShiftReason">Void reason <small>(optional)</small></label><textarea id="voidCurrentShiftReason" class="textarea" rows="3" maxlength="250" placeholder="Optional reason for the audit log"></textarea></div>`,
+    "Void Shift",
+    async () => {
+      const reason = String(document.getElementById("voidCurrentShiftReason")?.value || "").trim();
+      invalidateAutosaveForVoidV2181();
+      try {
+        const result = await api(`/api/closings/${encodeURIComponent(targetClosingId)}`, { method: "DELETE", body: JSON.stringify({ reason }) });
+        if (result.voided_closing_id !== targetClosingId) throw new Error("The current draft was not voided.");
+        state.closingId = null;
+        state.closingStatus = null;
+        state.closingReadOnly = false;
+        state.closingReview = false;
+        state.closing = null;
+        closeModal();
+        await reloadBootstrapAfterVoidV2181();
+        await ensureClosingPage();
+        toast("Shift voided", "The current draft was removed. You can start a replacement shift now.");
+      } catch (error) {
+        // If the delete was rejected before it changed the draft, keep the
+        // draft visible and make the failed save state explicit.
+        if (state.closingId === targetClosingId) {
+          autosaveDirtyV2179 = true;
+          autosaveFailureV2179 = true;
+          autosaveIndicatorV2179("Save failed");
+        }
+        throw error;
+      }
+    }
+  );
+  document.querySelector("#modalRoot .modal-save")?.classList.add("void-shift-button");
+  setTimeout(() => document.getElementById("voidCurrentShiftReason")?.focus(), 0);
+}
+
+const renderClosingV2181ActiveDraftActions = renderClosing;
+renderClosing = function() {
+  renderClosingV2181ActiveDraftActions();
+  if (!state.closing || state.closingReadOnly || state.closingReview) return;
+  const canVoid = ["developer", "admin"].includes(String(state.bootstrap?.cloud_context?.profile?.role || "").toLowerCase());
+  renderReviewTopActions(`<span id="closingAutosaveStatusV2181" class="closing-autosave-status closing-top-autosave" data-closing-autosave-status="true">${autosaveDirtyV2179 ? "Saving..." : autosaveFailureV2179 ? "Save failed" : "Saved"}</span>${canVoid ? `<button class="btn btn-secondary void-shift-button" id="voidCurrentShiftBtnV2181" type="button">Void Shift</button>` : ""}<button class="btn btn-success" id="closeShiftBtnV2181" type="button">${icon("check", 16)} Close Shift</button>`);
+  document.getElementById("closeShiftBtnV2181").onclick = () => { void openClosingReview(); };
+  const voidButton = document.getElementById("voidCurrentShiftBtnV2181");
+  if (voidButton) voidButton.onclick = showVoidCurrentShiftV2181;
+  const review = document.getElementById("reviewClosingBtn") || document.getElementById("closeShiftBtnV2180");
+  if (review) {
+    review.id = "closeShiftBtnV2181Bottom";
+    review.innerHTML = `${icon("check", 16)} Close Shift`;
+    review.onclick = () => { void openClosingReview(); };
+  }
 };

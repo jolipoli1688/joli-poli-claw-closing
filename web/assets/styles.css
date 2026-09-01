@@ -2034,6 +2034,7 @@ body { font-family:"Segoe UI","Segoe UI Variable Text",Inter,Arial,sans-serif; f
 #reviewTopActions .btn svg { width:15px; height:15px; stroke-width:1.8; }
 #reviewTopActions .btn-success { background:#087a4f; color:#fff; border-color:#087a4f; }
 #reviewTopActions .btn-success:hover { background:#066b45; }
+.closing-top-autosave{display:inline-flex;align-items:center;min-height:30px;padding:0 4px;color:#475467;font-size:12px;font-weight:700;white-space:nowrap}.closing-top-autosave[data-state="save-failed"]{color:#b42318}.void-shift-button{border-color:#fca5a5!important;background:#fff!important;color:#b42318!important}.void-shift-button:hover{border-color:#ef4444!important;background:#fef2f2!important;color:#991b1b!important}
 #page-closing .closing-summary-icon { width:28px !important; height:28px !important; flex:0 0 28px !important; margin-top:-1px; border:0 !important; border-radius:8px !important; box-shadow:none !important; }
 #page-closing .closing-summary-icon svg { width:16px !important; height:16px !important; stroke-width:1.75 !important; }
 #page-closing .closing-summary-item:nth-child(1) .closing-summary-icon { color:#5b78f6 !important; background:#eef2ff !important; }
