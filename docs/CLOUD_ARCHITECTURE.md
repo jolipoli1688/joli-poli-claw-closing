@@ -22,6 +22,8 @@ Browser
 - Store isolation enforced by RLS.
 - Settings needed for historical formulas are snapshotted at closing time.
 - Finalization is authoritative server-side calculation + state transition.
+- Start Shift owns a real, idempotent server-side draft for the authorized store and report date. Cloud refresh resolves only that exact `draft` record for Continue Shift; finalized and voided records are never resumed.
+- Active-draft saves update the existing machine/product rows so refill events remain an append-only ledger rather than being recreated by autosave.
 
 ## Current Windows app during migration
 

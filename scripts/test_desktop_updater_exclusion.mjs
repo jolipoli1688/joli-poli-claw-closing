@@ -35,7 +35,7 @@ vm.createContext(context);
 vm.runInContext(cloudAdapter, context);
 vm.runInContext(facade, context);
 for (const route of ["/api/update/status", "/api/update/check", "/api/update/download", "/api/update/install", "/api/update/apply"]) {
-  await assert.rejects(() => context.window.clawApi.request(route), /Desktop software updates are unavailable in Cloud Staging/);
+  await assert.rejects(() => context.window.clawApi.request(route), /Desktop software updates are unavailable in this browser workspace/);
 }
 assert.deepEqual(calls, [], "Cloud updater routes must be rejected before any fetch call");
 

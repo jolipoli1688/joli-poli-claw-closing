@@ -152,6 +152,32 @@ function calculate(payload: any) {
   return { total_sales: Number(totalSales.toFixed(2)), coins_dispensed: coinsDispensed, machine_coins_used: machineCoins, coin_variance: variance, total_prizes_won: prizes, average_sale_value_per_coin: coinsDispensed > 0 ? totalSales / coinsDispensed : 0, average_coins_per_prize: prizes > 0 ? machineCoins / prizes : 0, average_revenue_per_prize: prizes > 0 ? totalSales / prizes : 0, closing_status: variance === 0 ? "Balanced" : "Unbalanced" };
 }
 
+function validShiftDate(value: unknown) {
+  const reportDate = String(value || "").slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(reportDate) || reportDate > today) throw new Error("Start Shift is available only for today or an earlier date.");
+  return reportDate;
+}
+
+async function activeClosingForDate(ctx: Context, reportDate: string) {
+  const active = await ctx.admin.from("daily_closings").select("id,status").eq("store_id", ctx.store.id).eq("report_date", reportDate).neq("status", "void").maybeSingle();
+  if (active.error) throw new Error(active.error.message);
+  return active.data;
+}
+
+async function openingTemplate(ctx: Context, reportDate: string) {
+  const [machines, previous] = await Promise.all([
+    readMachines(ctx, true),
+    ctx.admin.from("daily_closings").select("id").eq("store_id", ctx.store.id).eq("status", "finalized").lt("report_date", reportDate).order("report_date", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  const carryForward = new Map<string, number>();
+  if (previous.data?.id) {
+    const entries = await ctx.admin.from("closing_machine_entries").select("closing_product_entries(machine_style_id,final_qty)").eq("closing_id", previous.data.id);
+    for (const entry of entries.data || []) for (const product of entry.closing_product_entries || []) carryForward.set(product.machine_style_id, integer(product.final_qty));
+  }
+  return { report_date: reportDate, outlet: ctx.store.name, machines: machines.map((machine: any) => ({ machine_id: machine.Machine_ID, machine_name: machine.Machine_Name, machine_type: machine.Machine_Type, products: machine.Products.map((product: any) => ({ ...product, begin_qty: carryForward.get(product.product_id) ?? integer(product.starting_qty), refill_qty: 0, final_qty: "" })), barcodes: machine.Barcodes, image_url: machine.Image_URL, capacity: 0, begin_prize: 0, refill_prize: 0, final_prize: "", begin_coin_meter: "", final_coin_meter: "", manual_coins_used: "", status: "Working", notes: "" })) };
+}
+
 async function saveClosing(ctx: Context, payload: any) {
   const workflow = String(payload.workflow_status || "Draft").toLowerCase();
   if (workflow === "finalized" && !payload.closed_by) throw new Error("Closed By is required.");
@@ -161,19 +187,27 @@ async function saveClosing(ctx: Context, payload: any) {
   const result = calculate(payload);
   if (workflow === "finalized" && result.coin_variance !== 0) throw new Error("The closing cannot be finalized until the coin variance is zero.");
   const now = new Date().toISOString();
-  const record: any = { store_id: ctx.store.id, report_date: String(payload.report_date).slice(0, 10), status: "draft", closed_by_user_id: ctx.userId, closed_by_name_snapshot: String(payload.closed_by), verified_by_name_snapshot: String(payload.verified_by || ""), cash_sales_khr: num(payload.sales?.cash_sales_khr ?? payload.sales?.cash_sales), cash_transactions: integer(payload.sales?.cash_transactions), aba_sales_usd: num(payload.sales?.aba_sales), aba_transactions: integer(payload.sales?.aba_transactions), adjustment_usd: num(payload.sales?.adjustment), beginning_coins: integer(payload.sales?.beginning_coins), coins_added: integer(payload.sales?.coins_added), final_coins: integer(payload.sales?.final_coins), exchange_rate_snapshot: num(payload.sales?.exchange_rate_usd_khr) || num(settings.data.exchange_rate_khr_per_usd), price_per_coin_snapshot: num(payload.sales?.price_per_coin_usd) || num(settings.data.price_per_coin_usd), currency_code_snapshot: settings.data.currency_code || "USD", variance_tolerance_snapshot: integer(settings.data.variance_tolerance), store_code_snapshot: ctx.store.code, store_name_snapshot: ctx.store.name, created_by: ctx.userId, notes: String(payload.notes || ""), total_sales_usd: result.total_sales, coins_dispensed: result.coins_dispensed, machine_coins_used: result.machine_coins_used, coin_variance: result.coin_variance, coins_used: result.machine_coins_used, coin_return: result.machine_coins_used, lose_over: result.coin_variance, total_products: result.total_prizes_won, average_sale_value_per_coin: result.average_sale_value_per_coin, average_coins_per_prize: result.average_coins_per_prize, avg_per_product_usd: result.average_revenue_per_prize, closing_status: result.closing_status, updated_at: now };
+  const reportDate = validShiftDate(payload.report_date);
+  const record: any = { store_id: ctx.store.id, report_date: reportDate, status: "draft", closed_by_user_id: ctx.userId, closed_by_name_snapshot: String(payload.closed_by || ""), verified_by_name_snapshot: String(payload.verified_by || ""), cash_sales_khr: num(payload.sales?.cash_sales_khr ?? payload.sales?.cash_sales), cash_transactions: integer(payload.sales?.cash_transactions), aba_sales_usd: num(payload.sales?.aba_sales), aba_transactions: integer(payload.sales?.aba_transactions), adjustment_usd: num(payload.sales?.adjustment), beginning_coins: integer(payload.sales?.beginning_coins), coins_added: integer(payload.sales?.coins_added), final_coins: integer(payload.sales?.final_coins), exchange_rate_snapshot: num(payload.sales?.exchange_rate_usd_khr) || num(settings.data.exchange_rate_khr_per_usd), price_per_coin_snapshot: num(payload.sales?.price_per_coin_usd) || num(settings.data.price_per_coin_usd), currency_code_snapshot: settings.data.currency_code || "USD", variance_tolerance_snapshot: integer(settings.data.variance_tolerance), store_code_snapshot: ctx.store.code, store_name_snapshot: ctx.store.name, created_by: ctx.userId, notes: String(payload.notes || ""), total_sales_usd: result.total_sales, coins_dispensed: result.coins_dispensed, machine_coins_used: result.machine_coins_used, coin_variance: result.coin_variance, coins_used: result.machine_coins_used, coin_return: result.machine_coins_used, lose_over: result.coin_variance, total_products: result.total_prizes_won, average_sale_value_per_coin: result.average_sale_value_per_coin, average_coins_per_prize: result.average_coins_per_prize, avg_per_product_usd: result.average_revenue_per_prize, closing_status: result.closing_status, updated_at: now };
   let closingId = String(payload.closing_id || "");
   if (closingId) {
     const existing = await ctx.admin.from("daily_closings").select("id,status,store_id").eq("id", closingId).single();
     if (existing.error || existing.data.store_id !== ctx.store.id || existing.data.status !== "draft") throw new Error("Only an authorized draft can be edited.");
-    await ctx.admin.from("daily_closings").update(record).eq("id", closingId);
-    const machineRows = await ctx.admin.from("closing_machine_entries").select("id").eq("closing_id", closingId);
-    if ((machineRows.data || []).length) await ctx.admin.from("closing_machine_entries").delete().in("id", machineRows.data!.map((row: any) => row.id));
+    const updated = await ctx.admin.from("daily_closings").update(record).eq("id", closingId);
+    if (updated.error) throw new Error(updated.error.message);
   } else {
-    record.closing_code = `STG-${record.report_date.replaceAll("-", "")}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
-    const created = await ctx.admin.from("daily_closings").insert(record).select("id").single();
-    if (created.error) throw new Error(created.error.message);
-    closingId = created.data.id;
+    const active = await activeClosingForDate(ctx, reportDate);
+    if (active?.status === "finalized") throw new Error("This shift is already closed and cannot be replaced.");
+    if (active?.status === "draft") {
+      closingId = active.id;
+      const updated = await ctx.admin.from("daily_closings").update(record).eq("id", closingId);
+      if (updated.error) throw new Error(updated.error.message);
+    } else {
+      record.closing_code = `STG-${record.report_date.replaceAll("-", "")}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
+      const created = await ctx.admin.from("daily_closings").insert(record).select("id").single();
+      if (created.error) throw new Error(created.error.message);
+      closingId = created.data.id;
+    }
   }
   const machines = payload.machines || [];
   for (const source of machines) {
@@ -182,20 +216,31 @@ async function saveClosing(ctx: Context, payload: any) {
     const isManual = String(source.meter_mode || "").toLowerCase() === "manual" || (source.begin_coin_meter === "" && source.final_coin_meter === "");
     const styles = master.data.machine_styles || [];
     const rule = await ctx.admin.from("store_machine_type_rules").select("coins_per_play").eq("store_id", ctx.store.id).eq("machine_type_id", master.data.machine_type_id).maybeSingle();
-    const entry = await ctx.admin.from("closing_machine_entries").insert({ closing_id: closingId, machine_id: master.data.id, machine_number_snapshot: master.data.machine_number, machine_code_snapshot: master.data.machine_code, machine_name_snapshot: master.data.display_name || master.data.machine_code, machine_type_name_snapshot: master.data.machine_types?.name || "", capacity_snapshot: 0, sort_order_snapshot: master.data.sort_order, coins_per_play_snapshot: integer(rule.data?.coins_per_play) || 1, meter_mode: isManual ? "manual" : "meter", begin_meter: isManual ? null : integer(source.begin_coin_meter), final_meter: isManual ? null : integer(source.final_coin_meter), manual_coins_used: isManual ? integer(source.manual_coins_used ?? source.coins_used) : null, coins_used: isManual ? integer(source.manual_coins_used ?? source.coins_used) : Math.max(0, integer(source.final_coin_meter) - integer(source.begin_coin_meter)), machine_status: String(source.status || "Working"), notes: String(source.notes || "") }).select("id").single();
+    const entryRecord = { closing_id: closingId, machine_id: master.data.id, machine_number_snapshot: master.data.machine_number, machine_code_snapshot: master.data.machine_code, machine_name_snapshot: master.data.display_name || master.data.machine_code, machine_type_name_snapshot: master.data.machine_types?.name || "", capacity_snapshot: 0, sort_order_snapshot: master.data.sort_order, coins_per_play_snapshot: integer(rule.data?.coins_per_play) || 1, meter_mode: isManual ? "manual" : "meter", begin_meter: isManual ? null : integer(source.begin_coin_meter), final_meter: isManual ? null : integer(source.final_coin_meter), manual_coins_used: isManual ? integer(source.manual_coins_used ?? source.coins_used) : null, coins_used: isManual ? integer(source.manual_coins_used ?? source.coins_used) : Math.max(0, integer(source.final_coin_meter) - integer(source.begin_coin_meter)), machine_status: String(source.status || "Working"), notes: String(source.notes || "") };
+    const existingEntry = await ctx.admin.from("closing_machine_entries").select("id").eq("closing_id", closingId).eq("machine_id", master.data.id).maybeSingle();
+    if (existingEntry.error) throw new Error(existingEntry.error.message);
+    const entry = existingEntry.data ? await ctx.admin.from("closing_machine_entries").update(entryRecord).eq("id", existingEntry.data.id).select("id").single() : await ctx.admin.from("closing_machine_entries").insert(entryRecord).select("id").single();
     if (entry.error) throw new Error(entry.error.message);
     const sourceProducts = source.products || source.Products || source.barcodes || [];
     for (const product of sourceProducts) {
       const barcode = typeof product === "string" ? product : String(product.barcode || "");
       const style = styles.find((item: any) => item.id === product.product_id || item.barcode === barcode);
       if (!style) throw new Error("A closing product does not belong to the selected machine.");
-      const refill = integer(product.refill_qty ?? product.refill_prize);
+      const existingProduct = await ctx.admin.from("closing_product_entries").select("id,begin_qty").eq("closing_machine_entry_id", entry.data.id).eq("machine_style_id", style.id).maybeSingle();
+      if (existingProduct.error) throw new Error(existingProduct.error.message);
+      const events = existingProduct.data ? await ctx.admin.from("refill_events").select("delta_qty").eq("closing_product_entry_id", existingProduct.data.id).is("voided_at", null) : { data: [] };
+      if ((events as any).error) throw new Error((events as any).error.message);
+      const refill = existingProduct.data ? ((events.data || []).reduce((sum: number, event: any) => sum + integer(event.delta_qty), 0)) : integer(product.refill_qty ?? product.refill_prize);
       const finalInput = product.final_qty ?? product.final_prize;
       const finalQty = finalInput === "" || finalInput === null || finalInput === undefined ? null : integer(finalInput);
-      const productEntry = await ctx.admin.from("closing_product_entries").insert({ closing_machine_entry_id: entry.data.id, machine_style_id: style.id, barcode_snapshot: style.barcode, product_name_snapshot: style.product_name, product_code_snapshot: style.style_code, image_object_key_snapshot: style.image_path, sort_order_snapshot: style.sort_order, begin_qty: integer(product.begin_qty ?? product.begin_prize ?? style.starting_qty), refill_qty: refill, final_qty: finalQty, qty_used: finalQty === null ? 0 : integer(product.begin_qty ?? product.begin_prize ?? style.starting_qty) + refill - finalQty }).select("id").single();
+      const beginQty = existingProduct.data ? integer(existingProduct.data.begin_qty) : integer(product.begin_qty ?? product.begin_prize ?? style.starting_qty);
+      const productRecord = { closing_machine_entry_id: entry.data.id, machine_style_id: style.id, barcode_snapshot: style.barcode, product_name_snapshot: style.product_name, product_code_snapshot: style.style_code, image_object_key_snapshot: style.image_path, sort_order_snapshot: style.sort_order, begin_qty: beginQty, refill_qty: refill, final_qty: finalQty, qty_used: finalQty === null ? 0 : beginQty + refill - finalQty, updated_at: now };
+      const productEntry = existingProduct.data ? await ctx.admin.from("closing_product_entries").update(productRecord).eq("id", existingProduct.data.id).select("id").single() : await ctx.admin.from("closing_product_entries").insert(productRecord).select("id").single();
       if (productEntry.error) throw new Error(productEntry.error.message);
-      for (const event of product.refill_history || []) { const delta = integer(event.qty); if (delta) await ctx.admin.from("refill_events").insert({ closing_product_entry_id: productEntry.data.id, delta_qty: delta, note: event.note || null, created_by: ctx.userId, created_by_name_snapshot: String(event.by || event.created_by_name_snapshot || ctx.profile.display_name || "") }); }
-      if (refill && !(product.refill_history || []).length) await ctx.admin.from("refill_events").insert({ closing_product_entry_id: productEntry.data.id, delta_qty: refill, created_by: ctx.userId, created_by_name_snapshot: ctx.profile.display_name });
+      if (!existingProduct.data) {
+        for (const event of product.refill_history || []) { const delta = integer(event.qty); if (delta) await ctx.admin.from("refill_events").insert({ closing_product_entry_id: productEntry.data.id, delta_qty: delta, note: event.note || null, created_by: ctx.userId, created_by_name_snapshot: String(event.by || event.created_by_name_snapshot || ctx.profile.display_name || "") }); }
+        if (refill && !(product.refill_history || []).length) await ctx.admin.from("refill_events").insert({ closing_product_entry_id: productEntry.data.id, delta_qty: refill, created_by: ctx.userId, created_by_name_snapshot: ctx.profile.display_name });
+      }
     }
   }
   if (workflow === "finalized") { const finalized = await ctx.user.rpc("finalize_daily_closing", { target_closing: closingId }); if (finalized.error) throw new Error(finalized.error.message); }
@@ -216,8 +261,14 @@ async function recordRefill(ctx: Context, body: any) {
   let closingId = String(body.closing_id || body.closing_payload?.closing_id || "");
   if (!closingId) {
     if (!body.closing_payload || typeof body.closing_payload !== "object") throw new Error("A draft closing is required before recording an adjustment.");
-    const created = await saveClosing(ctx, { ...body.closing_payload, closing_id: "", workflow_status: "Draft" });
-    closingId = created.closing_id;
+    const reportDate = validShiftDate(body.closing_payload.report_date);
+    const active = await activeClosingForDate(ctx, reportDate);
+    if (active?.status === "draft") closingId = active.id;
+    else {
+      if (active?.status === "finalized") throw new Error("This shift is already closed and cannot accept an adjustment.");
+      const created = await saveClosing(ctx, { ...body.closing_payload, closing_id: "", workflow_status: "Draft" });
+      closingId = created.closing_id;
+    }
   }
 
   const closing = await ctx.admin.from("daily_closings").select("id,store_id,status").eq("id", closingId).single();
@@ -301,17 +352,25 @@ async function serve(req: Request) {
       await saveImage(ctx, { ...body, __staging_test_persistence_failure: true });
     }
     if (path === "/api/images/remove" && req.method === "POST") { if (!configurationManager(ctx)) return fail("Developer or Admin role required.", 403); const style = await ctx.admin.from("machine_styles").select("*, machines!inner(store_id)").eq("id", String(body.machine_style_id || "")).single(); if (style.error || style.data.machines.store_id !== ctx.store.id) return fail("Image style is not in the active store.", 404); const oldPath = style.data.image_path; const update = await ctx.admin.from("machine_styles").update({ image_path: null, image_content_type: null, image_updated_by: ctx.userId, image_updated_at: new Date().toISOString() }).eq("id", style.data.id); if (update.error) throw new Error(update.error.message); if (oldPath) { const remove = await ctx.admin.storage.from(IMAGE_BUCKET).remove([oldPath]); if (remove.error) throw new Error(`Image reference cleared; cleanup failed: ${remove.error.message}`); } return json({ ok: true }); }
+    if (path === "/api/active-closing" && req.method === "GET") {
+      const reportDate = validShiftDate(url.searchParams.get("report_date") || new Date().toISOString().slice(0, 10));
+      const active = await activeClosingForDate(ctx, reportDate);
+      return json({ closing_id: active?.status === "draft" ? active.id : null });
+    }
     if (path === "/api/new-closing") {
-      const today = new Date().toISOString().slice(0, 10);
-      const reportDate = String(url.searchParams.get("report_date") || today);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(reportDate) || reportDate > today) return fail("Start Shift is available only for today or an earlier date.", 400);
-      const active = await ctx.admin.from("daily_closings").select("id,status").eq("store_id", ctx.store.id).eq("report_date", reportDate).neq("status", "void").maybeSingle();
-      if (active.error) throw new Error(active.error.message);
-      if (active.data?.id) return json({ report_date: reportDate, outlet: ctx.store.name, existing_closing_id: active.data.id, machines: [] });
-      const [machines, previous] = await Promise.all([readMachines(ctx, true), ctx.admin.from("daily_closings").select("id").eq("store_id", ctx.store.id).eq("status", "finalized").lt("report_date", reportDate).order("report_date", { ascending: false }).limit(1).maybeSingle()]);
-      const carryForward = new Map<string, number>();
-      if (previous.data?.id) { const entries = await ctx.admin.from("closing_machine_entries").select("closing_product_entries(machine_style_id,final_qty)").eq("closing_id", previous.data.id); for (const entry of entries.data || []) for (const product of entry.closing_product_entries || []) carryForward.set(product.machine_style_id, integer(product.final_qty)); }
-      return json({ report_date: reportDate, outlet: ctx.store.name, machines: machines.map((machine: any) => ({ machine_id: machine.Machine_ID, machine_name: machine.Machine_Name, machine_type: machine.Machine_Type, products: machine.Products.map((product: any) => ({ ...product, begin_qty: carryForward.get(product.product_id) ?? integer(product.starting_qty), refill_qty: 0, final_qty: "" })), barcodes: machine.Barcodes, image_url: machine.Image_URL, capacity: 0, begin_prize: 0, refill_prize: 0, final_prize: "", begin_coin_meter: "", final_coin_meter: "", manual_coins_used: "", status: "Working", notes: "" })) });
+      const reportDate = validShiftDate(url.searchParams.get("report_date") || new Date().toISOString().slice(0, 10));
+      const active = await activeClosingForDate(ctx, reportDate);
+      if (active?.status === "finalized") return fail("This shift is already closed and cannot be started again.", 409);
+      if (active?.status === "draft") return json({ report_date: reportDate, outlet: ctx.store.name, closing_id: active.id, existing_closing_id: active.id, reused: true });
+      const template = await openingTemplate(ctx, reportDate);
+      try {
+        const created = await saveClosing(ctx, { ...template, sales: {}, closed_by: "", verified_by: "", notes: "", workflow_status: "Draft" });
+        return json({ report_date: reportDate, outlet: ctx.store.name, closing_id: created.closing_id, reused: false });
+      } catch (error) {
+        const concurrent = await activeClosingForDate(ctx, reportDate);
+        if (concurrent?.status === "draft") return json({ report_date: reportDate, outlet: ctx.store.name, closing_id: concurrent.id, existing_closing_id: concurrent.id, reused: true });
+        throw error;
+      }
     }
     if (path === "/api/calculate") return json({ summary: calculate(body), machines: [] });
     if (path === "/api/settings/unlock" && req.method === "POST") return configurationManager(ctx) ? json({ ok: true }) : fail("Developer or Admin role required.", 403);

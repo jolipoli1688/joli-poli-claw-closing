@@ -41,7 +41,7 @@
     const close = () => root.remove();
     root.querySelector("#clawUsersClose").onclick = close;
     root.querySelector(".claw-users-backdrop").addEventListener("click", event => { if (event.target === event.currentTarget) close(); });
-    root.addEventListener("keydown", event => { if (event.key === "Escape" && !root.querySelector(".claw-user-form-layer")) close(); });
+    root.addEventListener("keydown", event => { if (event.key === "Escape" && !document.querySelector(".claw-user-form-layer")) close(); });
 
     const renderRows = () => {
       const query = state.search.trim().toLowerCase();
@@ -57,7 +57,7 @@
       const role = user?.role || "outlet";
       const assigned = new Set(userOutlets(user || {}));
       formLayer.innerHTML = `<div class="claw-user-form-card" role="dialog" aria-modal="true" aria-labelledby="clawUserFormTitle"><header><div><h3 id="clawUserFormTitle">${editing ? "Edit User" : "Add User"}</h3><p>${editing ? "Update role, outlet access, or account status." : "Create an authenticated user."}</p></div><button type="button" class="claw-icon-button" data-close-form aria-label="Close">×</button></header><form id="clawUserForm"><div class="claw-user-form-body"><label class="claw-form-field">Username<input name="username" type="text" required autocomplete="username" value="${esc(user?.username || "")}" ${editing ? "readonly" : ""}></label>${editing ? "" : `<label class="claw-form-field">Temporary Password<input name="temporary_password" type="password" required autocomplete="new-password" minlength="12"></label>`}<label class="claw-form-field">Role<select name="role"><option value="outlet" ${role === "outlet" ? "selected" : ""}>Outlet</option><option value="admin" ${role === "admin" ? "selected" : ""}>Admin</option><option value="developer" ${role === "developer" ? "selected" : ""}>Developer</option></select></label>${editing ? `<label class="claw-form-field">Status<select name="status"><option value="active" ${user.status === "active" ? "selected" : ""}>Active</option><option value="inactive" ${user.status === "inactive" ? "selected" : ""}>Inactive</option></select></label>` : ""}<fieldset class="claw-outlet-fieldset"><legend>Outlet Assignment</legend><p>Outlet users require at least one assignment. Admin and Developer keep their existing all-outlet access model.</p><div class="claw-outlet-options">${state.stores.map(store => `<label><input type="checkbox" name="outlets" value="${esc(store.code)}" ${assigned.has(store.code) ? "checked" : ""}> <span>${esc(store.name || store.code)}</span></label>`).join("")}</div></fieldset><p class="claw-user-form-error" aria-live="polite"></p></div><footer><button type="button" class="btn btn-secondary" data-close-form>Cancel</button><button type="submit" class="btn btn-primary">${editing ? "Save Changes" : "Create User"}</button></footer></form></div>`;
-      root.appendChild(formLayer);
+      document.body.appendChild(formLayer);
       const closeForm = () => formLayer.remove();
       formLayer.querySelectorAll("[data-close-form]").forEach(button => { button.onclick = closeForm; });
       formLayer.addEventListener("click", event => { if (event.target === formLayer) closeForm(); });
@@ -95,6 +95,15 @@
         }
       });
       formLayer.querySelector("input:not([readonly]), select")?.focus();
+      formLayer.addEventListener("keydown", event => {
+        if (event.key === "Escape") { event.stopPropagation(); closeForm(); }
+        if (event.key !== "Tab") return;
+        const focusable = [...formLayer.querySelectorAll("button:not([disabled]), input:not([disabled]), select:not([disabled])")];
+        if (!focusable.length) return;
+        const first = focusable[0], last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      });
     };
 
     root.querySelector("#clawUserSearch").addEventListener("input", event => { state.search = event.target.value; renderRows(); });

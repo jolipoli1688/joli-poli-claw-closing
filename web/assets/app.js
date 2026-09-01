@@ -595,7 +595,7 @@ function closingStatusPill(status) {
 }
 
 async function renderDashboard() {
-  setActions(`<button class="btn btn-primary" id="dashboardNew">${icon("plus", 17)} New Closing</button>`);
+  setActions(`<button class="btn btn-primary" id="dashboardNew">${icon("plus", 17)} Start Shift</button>`);
   document.getElementById("dashboardNew").onclick = newClosing;
   const data = await api("/api/dashboard");
   const summary = data.summary || {};
@@ -712,7 +712,7 @@ function renderMachineRows(machines) {
 
 function renderClosing() {
   const c = state.closing;
-  setActions(`<button class="btn btn-primary" id="newClosingBtn">${icon("plus", 17)} New Closing</button>`);
+  setActions(`<button class="btn btn-primary" id="newClosingBtn">${icon("plus", 17)} Start Shift</button>`);
   document.getElementById("newClosingBtn").onclick = newClosing;
   const page = document.getElementById("page-closing");
   page.innerHTML = `
@@ -1863,7 +1863,7 @@ renderClosing = function() {
   renderPrintButton();
   c.machines.forEach(ensureClosingProducts);
   if (state.closingReadOnly) state.closingStructureEdit = false;
-  setActions(`<button class="btn btn-primary" id="newClosingBtn">${icon("plus", 17)} New Closing</button>`);
+  setActions(`<button class="btn btn-primary" id="newClosingBtn">${icon("plus", 17)} Start Shift</button>`);
   document.getElementById("newClosingBtn").onclick = newClosing;
   const page = document.getElementById("page-closing");
   page.innerHTML = `
@@ -2683,7 +2683,7 @@ function renderClosingReview() {
   const result = calculateLocal();
   const issues = closingReviewIssues(result);
   renderPrintButton();
-  setActions(`<button class="btn btn-primary" id="newClosingBtn">${icon("plus", 17)} New Closing</button>`);
+  setActions(`<button class="btn btn-primary" id="newClosingBtn">${icon("plus", 17)} Start Shift</button>`);
   document.getElementById("newClosingBtn").onclick = newClosing;
   const page = document.getElementById("page-closing");
   page.innerHTML = `${workflowStepper(true)}
@@ -2716,7 +2716,7 @@ renderClosing = function() {
   if (state.closingReview) { renderClosingReview(); return; }
   renderPrintButton();
   if (state.closingReadOnly) state.closingStructureEdit = false;
-  setActions(`<button class="btn btn-primary" id="newClosingBtn">${icon("plus", 17)} New Closing</button>`);
+  setActions(`<button class="btn btn-primary" id="newClosingBtn">${icon("plus", 17)} Start Shift</button>`);
   document.getElementById("newClosingBtn").onclick = newClosing;
   const page = document.getElementById("page-closing");
   const result = calculateLocal();
@@ -4612,4 +4612,189 @@ setupBulkSelection = function(page) {
   setupBulkSelectionV2178AlwaysAvailable(page);
   const clear = document.getElementById("bulkSelectToggle");
   if (clear) clear.onclick = () => setBulkMode(false);
+};
+
+/* v2.1.79 — active-draft lifecycle, queued autosave, and explicit selection mode. */
+const renderClosingV2179DailyWorkflow = renderClosing;
+const openClosingV2179DailyWorkflow = openClosing;
+const openClosingReviewV2179DailyWorkflow = openClosingReview;
+const ensureClosingPageV2179DailyWorkflow = ensureClosingPage;
+const showRefillProductModalV2179DailyWorkflow = showRefillProductModalV2144;
+const setupBulkSelectionV2179Explicit = setupBulkSelection;
+const updateBulkSelectionUiV2179Explicit = updateBulkSelectionUi;
+const handleBulkPointerDownV2179Explicit = handleBulkPointerDown;
+const handleBulkPointerEnterV2179Explicit = handleBulkPointerEnter;
+
+let autosaveTimerV2179 = null;
+let autosavePromiseV2179 = null;
+let autosaveQueuedV2179 = false;
+let autosaveDirtyV2179 = false;
+let autosaveRevisionV2179 = 0;
+
+function autosaveIndicatorV2179(value) {
+  const target = document.getElementById("closingAutosaveStatusV2179");
+  if (!target) return;
+  target.textContent = value;
+  target.dataset.state = value.toLowerCase().replace(/\s+/g, "-");
+}
+
+function scheduleAutosaveV2179() {
+  if (!state.closing || state.closingReadOnly || state.closingReview) return;
+  autosaveDirtyV2179 = true;
+  autosaveRevisionV2179 += 1;
+  clearTimeout(autosaveTimerV2179);
+  autosaveIndicatorV2179("Saving...");
+  autosaveTimerV2179 = setTimeout(() => { void flushAutosaveV2179(); }, 850);
+}
+
+async function persistActiveDraftV2179() {
+  if (!state.closing || state.closingReadOnly || !autosaveDirtyV2179) return;
+  if (autosavePromiseV2179) { autosaveQueuedV2179 = true; return autosavePromiseV2179; }
+  const revision = autosaveRevisionV2179;
+  autosaveDirtyV2179 = false;
+  autosaveIndicatorV2179("Saving...");
+  autosavePromiseV2179 = api("/api/closings/save", { method: "POST", body: JSON.stringify(closingPayload("Draft")) })
+    .then(result => {
+      state.closingId = result.closing_id;
+      state.closingStatus = result.workflow_status;
+      if (revision === autosaveRevisionV2179) autosaveIndicatorV2179("Saved");
+      return result;
+    })
+    .catch(error => {
+      autosaveDirtyV2179 = true;
+      autosaveIndicatorV2179("Save failed");
+      toast("Autosave failed", error.message || "Your changes are still in this browser. Try Save Now.", "error");
+      throw error;
+    })
+    .finally(() => { autosavePromiseV2179 = null; });
+  try { return await autosavePromiseV2179; }
+  finally {
+    if (autosaveQueuedV2179 || autosaveDirtyV2179) {
+      autosaveQueuedV2179 = false;
+      await persistActiveDraftV2179();
+    }
+  }
+}
+
+async function flushAutosaveV2179() {
+  clearTimeout(autosaveTimerV2179);
+  autosaveTimerV2179 = null;
+  return persistActiveDraftV2179();
+}
+
+function renderStartShiftStateV2179() {
+  const page = document.getElementById("page-closing");
+  if (!page) return;
+  setActions("");
+  page.innerHTML = `<section class="card start-shift-card"><div><span class="eyebrow">Daily Closing</span><h2>Ready to start a shift?</h2><p>Start Shift creates todayâ€™s secure draft immediately and safely restores it after refresh.</p></div><button id="startShiftButtonV2179" class="btn btn-primary" type="button">${icon("play", 16)} Start Shift</button></section>`;
+  document.getElementById("startShiftButtonV2179").onclick = () => newClosing();
+}
+
+newClosing = async function() {
+  const data = await api(`/api/new-closing?report_date=${isoToday()}`);
+  const closingId = data.closing_id || data.existing_closing_id;
+  if (!closingId) {
+    state.closingId = null;
+    state.closingStatus = "Draft";
+    state.closingReadOnly = false;
+    state.closing = { report_date: dateDisplay(data.report_date), outlet: data.outlet, closed_by: "", verified_by: "", notes: "", sales: defaultSales(), machines: data.machines || [] };
+    if (state.page !== "closing") await navigate("closing"); else renderClosing();
+    return;
+  }
+  state.closingReview = false;
+  state.closingReadOnly = false;
+  await openClosingV2179DailyWorkflow(closingId);
+  autosaveIndicatorV2179("Saved");
+};
+
+ensureClosingPage = async function() {
+  if (!isCloudStaging()) return ensureClosingPageV2179DailyWorkflow();
+  if (state.closing) return renderClosing();
+  const active = await api(`/api/active-closing?report_date=${isoToday()}`);
+  if (active.closing_id) return openClosingV2179DailyWorkflow(active.closing_id);
+  renderStartShiftStateV2179();
+};
+
+saveClosing = async function(status) {
+  if (status !== "Finalized") return flushAutosaveV2179();
+  await flushAutosaveV2179();
+  const result = await api("/api/closings/save", { method: "POST", body: JSON.stringify(closingPayload("Finalized")) });
+  state.closingId = result.closing_id;
+  state.closingStatus = result.workflow_status;
+  state.closingReadOnly = true;
+  autosaveDirtyV2179 = false;
+  renderClosing();
+  toast("Closing finalized", `${result.closing_id} was finalized.`);
+  return result;
+};
+
+confirmFinalize = function() {
+  showConfirm("Close Shift?", "Pending autosave changes will be saved before this shift is closed.", async () => {
+    try { await saveClosing("Finalized"); }
+    catch (error) { toast("Cannot close shift", error.message, "error"); }
+  });
+};
+
+openClosingReview = async function() {
+  try { await flushAutosaveV2179(); openClosingReviewV2179DailyWorkflow(); }
+  catch (error) { toast("Cannot open review", error.message, "error"); }
+};
+
+showRefillProductModalV2144 = async function(machineIndex, productIndex) {
+  try { await flushAutosaveV2179(); return showRefillProductModalV2179DailyWorkflow(machineIndex, productIndex); }
+  catch (error) { toast("Cannot open adjustment", error.message, "error"); }
+};
+
+renderClosing = function() {
+  renderClosingV2179DailyWorkflow();
+  if (!state.closing || state.closingReadOnly || state.closingReview) return;
+  setActions("");
+  document.getElementById("newClosingBtn")?.remove();
+  const save = document.getElementById("saveDraftBtn");
+  if (save) {
+    const status = document.createElement("span");
+    status.id = "closingAutosaveStatusV2179";
+    status.className = "closing-autosave-status";
+    status.textContent = autosaveDirtyV2179 ? "Saving..." : "Saved";
+    const now = document.createElement("button");
+    now.id = "saveNowBtnV2179";
+    now.className = "btn btn-ghost btn-compact";
+    now.type = "button";
+    now.textContent = "Save Now";
+    now.onclick = () => { void flushAutosaveV2179(); };
+    save.replaceWith(status, now);
+  }
+};
+
+document.addEventListener("input", event => {
+  if (event.target instanceof Element && event.target.matches("#page-closing input, #page-closing select, #page-closing textarea")) scheduleAutosaveV2179();
+}, true);
+document.addEventListener("change", event => {
+  if (event.target instanceof Element && event.target.matches("#page-closing select")) scheduleAutosaveV2179();
+}, true);
+
+handleBulkPointerDown = function(event) { if (state.bulkMode) handleBulkPointerDownV2179Explicit(event); };
+handleBulkPointerEnter = function(event) { if (state.bulkMode) handleBulkPointerEnterV2179Explicit(event); };
+setupBulkSelection = function(page) {
+  setupBulkSelectionV2179Explicit(page);
+  const oldToggle = document.getElementById("bulkSelectToggle");
+  if (oldToggle) {
+    const toggle = oldToggle.cloneNode(true);
+    oldToggle.replaceWith(toggle);
+    toggle.onclick = () => setBulkMode(!state.bulkMode);
+  }
+  const oldClear = document.getElementById("bulkClearBtn");
+  if (oldClear) {
+    const clear = oldClear.cloneNode(true);
+    oldClear.replaceWith(clear);
+    clear.textContent = "Clear Selection";
+    clear.onclick = () => { state.bulkSelection.clear(); state.bulkAnchor = null; updateBulkSelectionUi(); };
+  }
+};
+updateBulkSelectionUi = function() {
+  updateBulkSelectionUiV2179Explicit();
+  const toggle = document.getElementById("bulkSelectToggle");
+  const bar = document.getElementById("bulkEditBar");
+  if (toggle) toggle.innerHTML = `${icon("mouse-pointer", 15)} ${state.bulkMode ? "Exit Multi-select" : "Multi-select"}`;
+  if (bar) bar.hidden = !state.bulkMode;
 };

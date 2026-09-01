@@ -91,7 +91,7 @@ assert.match(app, /dataset\.submitting/, "modal actions must prevent duplicate s
 assert.match(edge, /async function recordRefill/, "Edge API must isolate refill behavior from closing save");
 assert.match(edge, /Adjusted By is required/, "Edge refill must require its audit operator");
 assert.match(edge, /This closing is locked/, "Edge refill must reject finalized or locked closings");
-assert.match(edge, /requireClosedBy: false/, "refill draft creation alone may bypass closing staff validation");
+assert.match(edge, /workflow === "finalized" && !payload\.closed_by/, "refill draft creation must remain independent of Closed By");
 assert.match(edge, /created_by_name_snapshot: adjustedBy/, "Edge refill must persist the supplied Adjusted By value");
 assert.match(edge, /apply_developer_user_profile/, "Developer-managed users must use the transactional profile/access RPC");
 assert.match(edge, /auth\.admin\.deleteUser/, "failed user setup must compensate by removing the new Auth identity");
