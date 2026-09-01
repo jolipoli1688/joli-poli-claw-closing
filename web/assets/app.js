@@ -2299,7 +2299,7 @@ function productCardMarkup(product, index) {
         <div class="field"><label>Barcode</label><input class="input product-barcode" value="${escapeHtml(product.barcode || "")}" placeholder="Scan or enter barcode"></div>
         
       </div>
-      <button class="icon-button product-delete" type="button" title="Remove product">${icon("trash", 16)}</button>
+      <div class="product-card-actions">${product.product_id && !String(product.product_id).startsWith("product-") ? '<button class="btn btn-ghost btn-compact product-retire" type="button">Retire</button>' : `<button class="icon-button product-delete" type="button" title="Remove unsaved product">${icon("trash", 16)}</button>`}</div>
     </div>
   </article>`;
 }
@@ -2357,10 +2357,23 @@ function bindProductEditor(container, products, rerender) {
       products[index].remove_image = true;
       rerender(index);
     };
-    card.querySelector(".product-delete").onclick = () => {
+    const removeUnsaved = card.querySelector(".product-delete");
+    if (removeUnsaved) removeUnsaved.onclick = () => {
       syncProductEditorValues(container, products);
       products.splice(index, 1);
       rerender(Math.max(0, index - 1));
+    };
+    const retire = card.querySelector(".product-retire");
+    if (retire) retire.onclick = async () => {
+      syncProductEditorValues(container, products);
+      const product = products[index];
+      if (!window.confirm(`Retire ${product.barcode || "this product"}? Historical and active-shift rows will be preserved; future shifts will not include it.`)) return;
+      try {
+        await api(`/api/machine-styles/${encodeURIComponent(product.product_id)}`, { method: "DELETE", body: JSON.stringify({}) });
+        products.splice(index, 1);
+        rerender(Math.max(0, index - 1));
+        toast("Product retired", "It remains visible in any active shift that already contains it.");
+      } catch (error) { toast("Cannot retire product", error.message, "error"); }
     };
   });
 
@@ -2400,7 +2413,7 @@ showMachineModal = function(machine) {
       <div class="field grid-span-2"><label>Notes</label><input id="m-notes" class="input" value="${escapeHtml(machine?.Notes || "")}"></div>
     </div>
     <section class="products-editor-section">
-      <div class="barcode-editor-header"><div><label>Products inside this machine</label><p>Each product has its own barcode and image.</p></div><button id="addProductCard" class="btn btn-secondary btn-compact" type="button">${icon("plus", 14)} Add Code</button></div>
+      <div class="barcode-editor-header"><div><label>Products inside this machine</label><p>Each product has its own barcode and image.</p></div><div class="product-template-actions">${isEdit ? '<button id="showInactiveProducts" class="btn btn-ghost btn-compact" type="button">Show inactive</button>' : ""}<button id="addProductCard" class="btn btn-secondary btn-compact" type="button">${icon("plus", 14)} Add Code</button></div></div>
       <div id="productEditorCards" class="product-editor-cards"></div>
     </section>
   </div>`, "Save Machine", async () => {
@@ -2436,10 +2449,15 @@ showMachineModal = function(machine) {
         closingMachine.machine_name = updated.Machine_Name;
         closingMachine.machine_type = updated.Machine_Type;
         closingMachine.capacity = updated.Capacity;
-        closingMachine.products = machineProducts(updated).map(item => {
+        const nextProducts = machineProducts(updated).map(item => {
           const current = currentById.get(item.product_id);
           return current ? { ...item, begin_qty: current.begin_qty, refill_qty: current.refill_qty || 0, refill_history: current.refill_history || [], final_qty: current.final_qty } : { ...item, begin_qty: 0, refill_qty: 0, refill_history: [], final_qty: 0 };
         });
+        // A retirement changes the master template only.  The in-progress
+        // closing keeps its snapshot until it is finalized or voided.
+        const nextIds = new Set(nextProducts.map(item => item.product_id));
+        if (state.closingId && !state.closingReadOnly) currentById.forEach((current, productId) => { if (!nextIds.has(productId)) nextProducts.push(current); });
+        closingMachine.products = nextProducts;
         closingMachine.barcodes = machineBarcodes(updated);
       }
     } else if (state.closing && updated.Active !== false) {
@@ -2476,6 +2494,18 @@ showMachineModal = function(machine) {
     syncProductEditorValues(container, products);
     products.push(newProductEditorItem(products.length));
     renderCards(products.length - 1);
+  };
+  const showInactive = document.getElementById("showInactiveProducts");
+  if (showInactive) showInactive.onclick = async () => {
+    try {
+      const masters = await api("/api/machines?active_only=false&include_inactive=true");
+      const refreshed = masters.find(item => String(item.Machine_ID) === String(machine?.Machine_ID));
+      if (!refreshed) throw new Error("Machine not found.");
+      syncProductEditorValues(container, products);
+      products = machineProducts(refreshed).map(item => ({ ...item, image_data: "", remove_image: false }));
+      renderCards(-1);
+      showInactive.remove();
+    } catch (error) { toast("Cannot show inactive products", error.message, "error"); }
   };
   renderCards(-1);
 };
@@ -4831,4 +4861,18 @@ updateBulkSelectionUi = function() {
   const bar = document.getElementById("bulkEditBar");
   if (toggle) toggle.innerHTML = `${icon("mouse-pointer", 15)} ${state.bulkMode ? "Exit Multi-select" : "Multi-select"}`;
   if (bar) bar.hidden = !state.bulkMode;
+};
+
+/* v2.1.80 — an active draft always exposes the non-finalizing close path. */
+const renderClosingV2180CloseShift = renderClosing;
+renderClosing = function() {
+  renderClosingV2180CloseShift();
+  if (!state.closing || state.closingReadOnly || state.closingReview) return;
+  const review = document.getElementById("reviewClosingBtn");
+  if (!review) return;
+  review.id = "closeShiftBtnV2180";
+  review.className = "btn btn-success";
+  review.innerHTML = `${icon("check", 16)} Close Shift`;
+  review.title = "Save this active draft, then review it before final confirmation.";
+  review.onclick = () => { void openClosingReview(); };
 };

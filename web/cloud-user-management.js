@@ -27,12 +27,23 @@
   const show = async () => {
     const bootstrap = window.clawCloudBootstrap;
     if (!bootstrap?.cloud_context) throw new Error("Cloud workspace context is unavailable.");
-    const users = await request("/api/users");
-    const state = { users, stores: bootstrap.cloud_context?.stores || [], search: "", role: "", showInactive: false };
+    const [users, outlets] = await Promise.all([request("/api/users"), request("/api/outlets?include_inactive=true")]);
+    const state = { users, outlets, stores: outlets.filter(outlet => outlet.status === "active"), search: "", role: "", showInactive: false, showInactiveOutlets: false };
     const root = document.createElement("section");
     root.id = "clawDeveloperUsers";
     root.innerHTML = `<div class="claw-users-backdrop" role="presentation"><div class="claw-users-dialog" role="dialog" aria-modal="true" aria-labelledby="clawUsersTitle"><header class="claw-users-header"><div><h2 id="clawUsersTitle">User Management</h2><p>Manage application users and outlet access.</p></div><div class="claw-users-header-actions"><button class="claw-icon-button" id="clawUsersClose" type="button" aria-label="Close User Management">×</button></div></header><div class="claw-users-body"><div class="claw-users-toolbar"><div class="claw-users-filters"><label class="claw-search-field"><span class="claw-sr-only">Search users</span><input id="clawUserSearch" type="search" placeholder="Search users" autocomplete="off"></label><label class="claw-filter-field"><span class="claw-sr-only">Filter by role</span><select id="clawUserRole"><option value="">All roles</option><option value="developer">Developer</option><option value="admin">Admin</option><option value="outlet">Outlet</option></select></label><label class="claw-inactive-toggle"><input id="clawUserInactive" type="checkbox"> <span>Show inactive</span></label></div><button id="clawUserAdd" class="btn btn-primary claw-users-add" type="button">+ Add User</button></div><div class="claw-users-table-wrap"><table class="claw-users-table"><thead><tr><th>Username</th><th>Role</th><th>Outlet Access</th><th>Status</th><th><span class="claw-sr-only">Actions</span></th></tr></thead><tbody id="clawUsersRows"></tbody></table></div></div></div></div>`;
     document.body.appendChild(root);
+    const dialog = root.querySelector(".claw-users-dialog");
+    const usersPanel = root.querySelector(".claw-users-body");
+    const tabs = document.createElement("nav");
+    tabs.className = "claw-admin-tabs";
+    tabs.setAttribute("aria-label", "Management sections");
+    tabs.innerHTML = '<button class="claw-admin-tab is-selected" data-admin-tab="users" type="button">Users</button><button class="claw-admin-tab" data-admin-tab="outlets" type="button">Outlets</button>';
+    const outletsPanel = document.createElement("div");
+    outletsPanel.className = "claw-users-body claw-outlet-panel";
+    outletsPanel.hidden = true;
+    dialog.insertBefore(tabs, usersPanel);
+    dialog.appendChild(outletsPanel);
     const notice = document.createElement("p");
     notice.id = "clawUserManagementNotice";
     notice.className = "claw-user-management-notice";
@@ -106,6 +117,30 @@
       });
     };
 
+    const renderOutlets = () => {
+      const rows = state.outlets.filter(outlet => state.showInactiveOutlets || outlet.status === "active");
+      outletsPanel.innerHTML = `<div class="claw-users-toolbar"><label class="claw-inactive-toggle"><input id="clawOutletInactive" type="checkbox" ${state.showInactiveOutlets ? "checked" : ""}> <span>Show inactive</span></label><button id="clawOutletAdd" class="btn btn-primary claw-users-add" type="button">+ Add Outlet</button></div><p class="claw-outlet-help">Inactive outlets cannot be assigned to users. Deactivation is blocked while an active draft shift exists.</p><div class="claw-users-table-wrap"><table class="claw-users-table"><thead><tr><th>Code</th><th>Name</th><th>Assigned Users</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(outlet => `<tr><td><strong>${esc(outlet.code)}</strong></td><td>${esc(outlet.name)}</td><td>${Number(outlet.assigned_users || 0)}</td><td><span class="claw-status-badge ${outlet.status === "active" ? "is-active" : "is-inactive"}">${esc(label(outlet.status))}</span></td><td class="claw-users-actions"><button class="btn btn-secondary btn-compact" data-outlet-id="${esc(outlet.id)}" type="button">Edit</button></td></tr>`).join("") || '<tr><td colspan="5" class="claw-users-empty">No outlets match this view.</td></tr>'}</tbody></table></div>`;
+      outletsPanel.querySelector("#clawOutletInactive").onchange = event => { state.showInactiveOutlets = event.target.checked; renderOutlets(); };
+      outletsPanel.querySelector("#clawOutletAdd").onclick = () => openOutletForm(null);
+      outletsPanel.querySelectorAll("[data-outlet-id]").forEach(button => { button.onclick = () => openOutletForm(state.outlets.find(outlet => outlet.id === button.dataset.outletId)); });
+    };
+    const refreshOutlets = async () => { state.outlets = await request("/api/outlets?include_inactive=true"); state.stores = state.outlets.filter(outlet => outlet.status === "active"); };
+    const openOutletForm = outlet => {
+      const editing = Boolean(outlet);
+      const formLayer = document.createElement("div");
+      formLayer.className = "claw-user-form-layer";
+      formLayer.innerHTML = `<div class="claw-user-form-card" role="dialog" aria-modal="true"><header><div><h3>${editing ? "Edit Outlet" : "Add Outlet"}</h3><p>${editing ? "Rename or change the outlet status." : "Settings are copied from the active outlet."}</p></div><button type="button" class="claw-icon-button" data-close-form aria-label="Close">×</button></header><form><div class="claw-user-form-body">${editing ? `<label class="claw-form-field">Code<input value="${esc(outlet.code)}" readonly></label>` : '<label class="claw-form-field">Code<input name="code" required maxlength="32" placeholder="OUTLET-01"></label>'}<label class="claw-form-field">Name<input name="name" required maxlength="80" value="${esc(outlet?.name || "")}"></label>${editing ? `<label class="claw-form-field">Status<select name="status"><option value="active" ${outlet.status === "active" ? "selected" : ""}>Active</option><option value="inactive" ${outlet.status === "inactive" ? "selected" : ""}>Inactive</option></select></label>` : ""}<p class="claw-user-form-error" aria-live="polite"></p></div><footer><button type="button" class="btn btn-secondary" data-close-form>Cancel</button><button class="btn btn-primary" type="submit">${editing ? "Save Changes" : "Create Outlet"}</button></footer></form></div>`;
+      document.body.appendChild(formLayer);
+      const closeForm = () => formLayer.remove();
+      formLayer.querySelectorAll("[data-close-form]").forEach(button => { button.onclick = closeForm; });
+      formLayer.querySelector("form").onsubmit = async event => {
+        event.preventDefault(); const form = new FormData(event.currentTarget); const payload = editing ? { name: form.get("name"), status: form.get("status") } : { code: form.get("code"), name: form.get("name") }; const error = formLayer.querySelector(".claw-user-form-error");
+        if (editing && payload.status === "inactive" && !window.confirm("Deactivate this outlet? It will disappear from user assignment and cannot have an active draft shift.")) return;
+        try { await request(editing ? `/api/outlets/${outlet.id}` : "/api/outlets", { method: editing ? "PATCH" : "POST", body: JSON.stringify(payload) }); await refreshOutlets(); closeForm(); renderOutlets(); root.querySelector("#clawUserManagementNotice").textContent = editing ? "Outlet changes saved." : "Outlet created."; } catch (cause) { error.textContent = cause.message || "The outlet could not be saved."; }
+      };
+      formLayer.querySelector("input:not([readonly])")?.focus();
+    };
+    tabs.querySelectorAll("[data-admin-tab]").forEach(button => { button.onclick = () => { const outletsTab = button.dataset.adminTab === "outlets"; usersPanel.hidden = outletsTab; outletsPanel.hidden = !outletsTab; tabs.querySelectorAll("[data-admin-tab]").forEach(tab => tab.classList.toggle("is-selected", tab === button)); if (outletsTab) renderOutlets(); }; });
     root.querySelector("#clawUserSearch").addEventListener("input", event => { state.search = event.target.value; renderRows(); });
     root.querySelector("#clawUserRole").addEventListener("change", event => { state.role = event.target.value; renderRows(); });
     root.querySelector("#clawUserInactive").addEventListener("change", event => { state.showInactive = event.target.checked; renderRows(); });
