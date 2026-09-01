@@ -2406,7 +2406,7 @@ showMachineModal = function(machine) {
 
   showModal(`${isEdit ? "Edit" : "Add"} Machine`, `<div id="${modalId}" class="machine-editor product-machine-editor">
     <div class="grid-2">
-      <div class="field"><label>Machine Type</label><select id="m-type" class="select">${typeOptions}</select><small class="field-help">Machine number is assigned automatically inside the selected type.</small></div>
+      <div class="field"><label>Machine Type</label><select id="m-type" class="select" ${isEdit ? "disabled" : ""}>${typeOptions}</select><small class="field-help">${isEdit ? "Machine Type is fixed after creation to preserve its identity." : "Machine number is assigned automatically inside the selected type."}</small></div>
       
       <div class="field"><label>Prize Category</label><input id="m-category" class="input" value="${escapeHtml(machine?.Prize_Category || "Plush Toy")}"></div>
       <div class="field"><label>Status</label><select id="m-active" class="select"><option value="true" ${machine?.Active !== false ? "selected" : ""}>Active</option><option value="false" ${machine?.Active === false ? "selected" : ""}>Inactive</option></select></div>
@@ -2425,17 +2425,18 @@ showMachineModal = function(machine) {
     const machineId = String(machine?.Machine_ID || "").trim();
     const selectedType = document.getElementById("m-type").value.trim();
     if (!selectedType) throw new Error("Choose a Machine Type from Settings.");
+    const payload = {
+      machine_type: selectedType,
+      capacity: 0,
+      prize_category: document.getElementById("m-category").value,
+      active: document.getElementById("m-active").value === "true",
+      notes: document.getElementById("m-notes").value,
+      products,
+    };
+    if (machineId) payload.machine_id = machineId;
     const result = await api("/api/machines", {
       method: "POST",
-      body: JSON.stringify({
-        machine_id: machineId,
-        machine_type: selectedType,
-        capacity: 0,
-        prize_category: document.getElementById("m-category").value,
-        active: document.getElementById("m-active").value === "true",
-        notes: document.getElementById("m-notes").value,
-        products,
-      }),
+      body: JSON.stringify(payload),
     });
     const updated = result.machine;
     const machineIndex = state.machines.findIndex(item => String(item.Machine_ID) === String(updated.Machine_ID));

@@ -60,6 +60,11 @@ function normalizeOutletName(value: unknown) {
   if (name.length < 2 || name.length > 80) throw new Error("Outlet name must be 2-80 characters.");
   return name;
 }
+function machineCodePart(value: unknown) {
+  const normalized = String(value || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return normalized || "MACHINE";
+}
+function isUniqueViolation(error: any) { return error?.code === "23505" || /duplicate key|unique/i.test(String(error?.message || "")); }
 async function writeAudit(ctx: Context, entityType: string, entityId: string, action: string, metadata: any = {}) {
   const { error } = await ctx.admin.from("audit_log").insert({ actor_user_id: ctx.userId, store_id: ctx.store.id, entity_type: entityType, entity_id: entityId, action, metadata });
   if (error) throw new Error(error.message);
@@ -351,21 +356,28 @@ async function serve(req: Request) {
       const machineId = String(body.machine_id || "");
       const machineType = await ctx.admin.from("machine_types").select("id,name").eq("name", String(body.machine_type || "")).single();
       if (machineType.error) throw new Error("Choose a configured machine type.");
+      const products = body.products || body.Products || (body.barcodes || []).map((barcode: string) => ({ barcode }));
+      if (!machineId && !products.some((product: any) => String(typeof product === "string" ? product : product?.barcode || "").trim())) throw new Error("At least one product barcode is required.");
       let machine: any;
       if (machineId) {
         const existing = await ctx.admin.from("machines").select("*").eq("id", machineId).eq("store_id", ctx.store.id).single();
         if (existing.error) throw new Error("Machine is not in the active store.");
-        const updated = await ctx.admin.from("machines").update({ machine_type_id: machineType.data.id, display_name: String(body.machine_name || existing.data.display_name || ""), prize_category: String(body.prize_category || ""), is_active: body.active !== false, sort_order: integer(body.sort_order) || existing.data.sort_order, notes: String(body.notes || "") }).eq("id", machineId).select("*").single();
+        if (existing.data.machine_type_id !== machineType.data.id) return fail("Machine Type is fixed after creation so its number and internal identity remain stable.", 409);
+        const updated = await ctx.admin.from("machines").update({ prize_category: String(body.prize_category || ""), is_active: body.active !== false, sort_order: integer(body.sort_order) || existing.data.sort_order, notes: String(body.notes || "") }).eq("id", machineId).select("*").single();
         if (updated.error) throw new Error(updated.error.message); machine = updated.data;
       } else {
-        const code = String(body.machine_code || body.machine_name || "").trim().toUpperCase();
-        if (!code) throw new Error("Machine ID is required.");
-        const requestedNumber = integer(body.machine_number);
-        const previousNumber = requestedNumber ? { data: null } : await ctx.admin.from("machines").select("machine_number").eq("store_id", ctx.store.id).eq("machine_type_id", machineType.data.id).order("machine_number", { ascending: false }).limit(1).maybeSingle();
-        const created = await ctx.admin.from("machines").insert({ store_id: ctx.store.id, machine_type_id: machineType.data.id, machine_code: code, machine_number: requestedNumber || integer(previousNumber.data?.machine_number) + 1 || 1, display_name: String(body.machine_name || code), prize_category: String(body.prize_category || ""), is_active: body.active !== false, sort_order: integer(body.sort_order) || 1, notes: String(body.notes || "") }).select("*").single();
-        if (created.error) throw new Error(created.error.message); machine = created.data;
+        // The database's (store_id, machine_type_id, machine_number) constraint
+        // is the authority.  A concurrent creator retries after a collision.
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const previous = await ctx.admin.from("machines").select("machine_number").eq("store_id", ctx.store.id).eq("machine_type_id", machineType.data.id).order("machine_number", { ascending: false }).limit(1).maybeSingle();
+          if (previous.error) throw new Error(previous.error.message);
+          const machineNumber = integer(previous.data?.machine_number) + 1 || 1;
+          const machineCode = `${machineCodePart(ctx.store.code)}-${machineCodePart(machineType.data.name)}-${String(machineNumber).padStart(3, "0")}`;
+          const created = await ctx.admin.from("machines").insert({ store_id: ctx.store.id, machine_type_id: machineType.data.id, machine_code: machineCode, machine_number: machineNumber, display_name: `${machineType.data.name} ${machineNumber}`, prize_category: String(body.prize_category || ""), is_active: body.active !== false, sort_order: integer(body.sort_order) || machineNumber, notes: String(body.notes || "") }).select("*").single();
+          if (!created.error) { machine = created.data; break; }
+          if (!isUniqueViolation(created.error) || attempt === 4) throw new Error(created.error.message);
+        }
       }
-      const products = body.products || body.Products || (body.barcodes || []).map((barcode: string) => ({ barcode }));
       for (let index = 0; index < products.length; index++) { const product = typeof products[index] === "string" ? { barcode: products[index] } : products[index]; if (!String(product.barcode || "").trim()) continue; const style = await ctx.admin.from("machine_styles").upsert({ machine_id: machine.id, barcode: String(product.barcode).trim(), product_name: String(product.product_name || product.barcode).trim(), style_code: String(product.product_id || product.barcode).trim(), starting_qty: Math.max(0, integer(product.starting_qty)), is_active: product.active !== false, sort_order: integer(product.sort_order) || index + 1 }, { onConflict: "machine_id,barcode" }); if (style.error) throw new Error(style.error.message); }
       if (body.remove_image) { const first = await ctx.admin.from("machine_styles").select("id,image_path").eq("machine_id", machine.id).order("sort_order").limit(1).maybeSingle(); if (first.data?.image_path) { await ctx.admin.from("machine_styles").update({ image_path: null, image_content_type: null, image_updated_by: ctx.userId }).eq("id", first.data.id); await ctx.admin.storage.from(IMAGE_BUCKET).remove([first.data.image_path]); } }
       if (body.image_data) { const first = await ctx.admin.from("machine_styles").select("id").eq("machine_id", machine.id).order("sort_order").limit(1).single(); if (!first.error) { const match = String(body.image_data).match(/^data:(image\/(?:jpeg|png|webp));base64,/); if (!match) throw new Error("Only JPEG, PNG, and WebP images are accepted."); await saveImage(ctx, { machine_style_id: first.data.id, content_type: match[1], image_base64: body.image_data }); } }
