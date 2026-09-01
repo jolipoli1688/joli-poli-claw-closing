@@ -7,7 +7,7 @@ const read = path => readFile(new URL(path, import.meta.url), "utf8");
 const [edge, uat, migration] = await Promise.all([
   read("../supabase/functions/claw-api/index.ts"),
   read("./test_authenticated_cloud_staging.mjs"),
-  read("../supabase/migrations/20260831130023_allow_same_date_replacement_after_void.sql"),
+  read("../supabase/migrations/20260901050154_allow_same_date_replacement_after_void.sql"),
 ]);
 
 const calculateSource = edge.match(/function calculate\(payload: any\) \{[\s\S]*?\n}\n\nasync function saveClosing/)?.[0] || "";

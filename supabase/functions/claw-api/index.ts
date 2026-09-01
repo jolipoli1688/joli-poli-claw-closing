@@ -257,7 +257,7 @@ async function recordRefill(ctx: Context, body: any) {
 }
 
 async function serve(req: Request) {
-  if (req.method === "OPTIONS") return new Response(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-claw-store-id", "Vary": "Origin" } });
+  if (req.method === "OPTIONS") return new Response(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-claw-store-id", "Vary": "Origin" } });
   const ctx = await context(req); if (ctx instanceof Response) return ctx;
   const url = new URL(req.url); const path = url.pathname.replace(/^\/claw-api/, "") || "/";
   const body = req.method === "GET" ? {} : await req.json().catch(() => ({}));
