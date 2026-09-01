@@ -1766,12 +1766,21 @@ document.addEventListener("wheel", event => {
 // v2.1.7 product-level inventory, product images, and dual meter/manual coin entry.
 "use strict";
 
+function productStableOrder(left, right) {
+  const leftOrder = Number(left?.sort_order_snapshot ?? left?.Sort_Order_Snapshot ?? left?.sort_order ?? left?.Sort_Order ?? 0) || 0;
+  const rightOrder = Number(right?.sort_order_snapshot ?? right?.Sort_Order_Snapshot ?? right?.sort_order ?? right?.Sort_Order ?? 0) || 0;
+  if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+  const created = String(left?.created_at ?? left?.Created_At ?? "").localeCompare(String(right?.created_at ?? right?.Created_At ?? ""));
+  if (created) return created;
+  return String(left?.product_id ?? left?.Product_ID ?? left?.machine_style_id ?? left?.Machine_Style_ID ?? left?.id ?? left?.barcode ?? "").localeCompare(String(right?.product_id ?? right?.Product_ID ?? right?.machine_style_id ?? right?.Machine_Style_ID ?? right?.id ?? right?.barcode ?? ""));
+}
+
 function machineProducts(machine) {
   const raw = machine?.products ?? machine?.Products ?? [];
   const fallback = machineBarcodesLegacy(machine);
   const source = Array.isArray(raw) && raw.length ? raw : fallback.map((barcode, index) => ({ product_id: `legacy-${index + 1}`, barcode }));
   const seen = new Set();
-  return source.map((item, index) => {
+  return [...source].sort(productStableOrder).map((item, index) => {
     const product = typeof item === "object" && item !== null ? item : { barcode: item };
     const barcode = String(product.barcode ?? product.Barcode ?? "").trim();
     const key = barcode.toLowerCase();
@@ -1783,6 +1792,7 @@ function machineProducts(machine) {
       default_quantity: 0,
       image_file: String(product.image_file ?? product.Image_File ?? ""),
       image_url: String(product.image_url ?? product.Image_URL ?? ""),
+      sort_order: product.sort_order_snapshot ?? product.Sort_Order_Snapshot ?? product.sort_order ?? product.Sort_Order ?? index + 1,
       begin_qty: product.begin_qty ?? product.Begin_Qty ?? 0,
       final_qty: product.final_qty ?? product.Final_Qty ?? product.begin_qty ?? product.Begin_Qty ?? 0,
     };
@@ -2215,6 +2225,7 @@ openClosing = async function(closingId) {
         barcode: row.Barcode || "",
         image_file: row.Image_File || "",
         image_url: row.Image_File ? `/api/machine-images/${encodeURIComponent(row.Image_File)}` : "",
+        sort_order: row.sort_order_snapshot ?? row.Sort_Order_Snapshot ?? row.sort_order ?? row.Sort_Order,
         default_quantity: 0,
         begin_qty: row.Begin_Qty ?? 0,
         final_qty: row.Final_Qty ?? 0,
