@@ -27,7 +27,14 @@
   const show = async () => {
     const bootstrap = window.clawCloudBootstrap;
     if (!bootstrap?.cloud_context) throw new Error("Cloud workspace context is unavailable.");
-    const [users, outlets] = await Promise.all([request("/api/users"), request("/api/outlets?include_inactive=true")]);
+    const loadingRoot = document.createElement("section");
+    loadingRoot.id = "clawDeveloperUsersLoading";
+    loadingRoot.innerHTML = '<div class="claw-users-backdrop" role="presentation"><div class="claw-users-dialog" role="dialog" aria-modal="true" aria-label="Loading User Management"><div class="claw-users-body" aria-busy="true"><div class="claw-users-toolbar"><div><span class="skeleton skeleton-heading"></span><span class="skeleton skeleton-copy"></span></div></div><div class="claw-users-table-wrap"><table class="claw-users-table"><thead><tr><th>Username</th><th>Role</th><th>Outlet Access</th><th>Status</th><th></th></tr></thead><tbody><tr><td colspan="5"><span class="skeleton skeleton-table-row"></span></td></tr><tr><td colspan="5"><span class="skeleton skeleton-table-row"></span></td></tr><tr><td colspan="5"><span class="skeleton skeleton-table-row"></span></td></tr><tr><td colspan="5"><span class="skeleton skeleton-table-row"></span></td></tr><tr><td colspan="5"><span class="skeleton skeleton-table-row"></span></td></tr></tbody></table></div></div></div></div>';
+    document.body.appendChild(loadingRoot);
+    let users, outlets;
+    try { [users, outlets] = await Promise.all([request("/api/users"), request("/api/outlets?include_inactive=true")]); }
+    catch (cause) { loadingRoot.innerHTML = `<div class="claw-users-backdrop"><div class="claw-users-dialog"><div class="claw-users-body"><div class="empty-state"><strong>Cannot load User Management</strong><span>${esc(cause.message || "Please try again.")}</span><button class="btn btn-primary" type="button" data-retry-users>Try again</button></div></div></div></div>`; loadingRoot.querySelector("[data-retry-users]").onclick = () => { loadingRoot.remove(); void show(); }; return; }
+    loadingRoot.remove();
     const state = { users, outlets, stores: outlets.filter(outlet => outlet.status === "active"), search: "", role: "", showInactive: false, showInactiveOutlets: false };
     const root = document.createElement("section");
     root.id = "clawDeveloperUsers";
@@ -90,7 +97,8 @@
         saving = true;
         const submit = formLayer.querySelector("button[type=submit]");
         const originalText = submit.textContent;
-        submit.textContent = editing ? "Saving…" : "Creating…";
+        submit.setAttribute("aria-busy", "true");
+        submit.innerHTML = `<span class="loading-inline"><span class="loading-inline-spinner" aria-hidden="true"></span><span>${editing ? "Saving..." : "Creating..."}</span></span>`;
         formLayer.querySelectorAll("button, input, select").forEach(control => { control.disabled = true; });
         try {
           await request(editing ? `/api/users/${user.id}` : "/api/users", { method: editing ? "PATCH" : "POST", body: JSON.stringify(payload) });
@@ -101,6 +109,7 @@
         } catch (cause) {
           error.textContent = cause.message || "The user could not be saved.";
           saving = false;
+          submit.removeAttribute("aria-busy");
           submit.textContent = originalText;
           formLayer.querySelectorAll("button, input, select").forEach(control => { control.disabled = false; });
         }
@@ -157,6 +166,8 @@
         if (confirmCode !== outlet.code) { error.textContent = `Type ${outlet.code} exactly to confirm permanent deletion.`; return; }
         const submit = formLayer.querySelector("button[type=submit]");
         submit.disabled = true;
+        submit.setAttribute("aria-busy", "true");
+        submit.innerHTML = '<span class="loading-inline"><span class="loading-inline-spinner" aria-hidden="true"></span><span>Deleting...</span></span>';
         try {
           const result = await request(`/api/outlets/${outlet.id}`, { method: "DELETE", body: JSON.stringify({ confirm_code: confirmCode }) });
           const wasCurrent = window.clawCloudBootstrap?.cloud_context?.active_store?.id === outlet.id;
@@ -169,6 +180,8 @@
         } catch (cause) {
           error.textContent = cause.message || "The outlet could not be permanently deleted.";
           submit.disabled = false;
+          submit.removeAttribute("aria-busy");
+          submit.textContent = "Delete Outlet Permanently";
         }
       };
       formLayer.querySelector("input[name=confirm_code]")?.focus();

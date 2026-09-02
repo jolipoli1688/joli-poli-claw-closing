@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="./assets/styles.css?v=2.1.78-light-figma-reference-1" />
 </head>
 <body>
-  <div id="appShell" class="app-shell">
+  <div id="appShell" class="app-shell app-shell-loading" aria-busy="true">
     <aside id="sidebar" class="sidebar" aria-label="Main navigation">
       <div class="sidebar-brand">
         <div class="brand-mark brand-logo-mark" aria-hidden="true"><img class="brand-logo-image" src="./assets/brand-logo.png" alt=""><span class="brand-logo-fallback">JP</span></div>
@@ -17,9 +17,9 @@
           <span>Claw Closing</span>
         </div>
       </div>
-      <nav id="sidebarNav" class="sidebar-nav"></nav>
+      <nav id="sidebarNav" class="sidebar-nav" aria-label="Loading navigation"><span class="skeleton skeleton-nav"></span><span class="skeleton skeleton-nav"></span><span class="skeleton skeleton-nav"></span></nav>
       <div class="sidebar-footer">
-        <span id="versionText" class="version-text"></span>
+        <span id="versionText" class="version-text skeleton skeleton-version"></span>
         <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="Collapse sidebar"></button>
       </div>
     </aside>
@@ -27,28 +27,18 @@
     <main class="workspace">
       <header class="topbar">
         <div>
-          <h1 id="pageTitle">Daily Closing</h1>
-          <p id="pageSubtitle"></p>
+          <h1 id="pageTitle"><span class="skeleton skeleton-title"></span><span class="claw-sr-only">Loading Daily Closing</span></h1>
+          <p id="pageSubtitle"><span class="skeleton skeleton-subtitle"></span></p>
         </div>
         <div class="topbar-actions"><button id="globalPrintButton" class="print-button" hidden></button><button id="globalUpdateButton" class="update-button" hidden></button><div id="pageActions" class="page-actions"></div></div>
       </header>
 
       <div class="content-viewport">
-        <section id="page-closing" class="page"></section>
+        <section id="page-closing" class="page" aria-label="Loading Daily Closing"><div class="loading-page-skeleton" aria-busy="true"><article class="card closing-overview-card skeleton-card"><div class="skeleton-section-copy"><span class="skeleton skeleton-kicker"></span><span class="skeleton skeleton-heading"></span><span class="skeleton skeleton-copy"></span></div><div class="skeleton-form-grid"><span class="skeleton skeleton-input"></span><span class="skeleton skeleton-input"></span><span class="skeleton skeleton-input"></span><span class="skeleton skeleton-input"></span></div><div class="skeleton-payment-grid"><span class="skeleton skeleton-input"></span><span class="skeleton skeleton-input"></span><span class="skeleton skeleton-input"></span><span class="skeleton skeleton-input"></span><span class="skeleton skeleton-input"></span></div></article><div class="kpi-grid closing-kpi-grid"><article class="card kpi-card skeleton-kpi"><span class="skeleton skeleton-kpi-label"></span><span class="skeleton skeleton-kpi-value"></span></article><article class="card kpi-card skeleton-kpi"><span class="skeleton skeleton-kpi-label"></span><span class="skeleton skeleton-kpi-value"></span></article><article class="card kpi-card skeleton-kpi"><span class="skeleton skeleton-kpi-label"></span><span class="skeleton skeleton-kpi-value"></span></article><article class="card kpi-card skeleton-kpi"><span class="skeleton skeleton-kpi-label"></span><span class="skeleton skeleton-kpi-value"></span></article></div><article class="card section-card machine-section skeleton-table-card"><div class="section-heading"><div><span class="skeleton skeleton-heading"></span><span class="skeleton skeleton-copy"></span></div></div><div class="data-table-wrap"><table class="data-table machine-table skeleton-machine-table"><thead><tr><th>Machine</th><th>Product / Barcode</th><th>Begin Qty</th><th>Refill</th><th>Final Qty</th><th>Qty Used</th><th>Begin Meter</th><th>Final Meter</th><th>Coins Used</th><th>Win Rate</th><th>Status</th></tr></thead><tbody><tr><td colspan="11"><span class="skeleton skeleton-table-row"></span></td></tr><tr><td colspan="11"><span class="skeleton skeleton-table-row"></span></td></tr><tr><td colspan="11"><span class="skeleton skeleton-table-row"></span></td></tr><tr><td colspan="11"><span class="skeleton skeleton-table-row"></span></td></tr><tr><td colspan="11"><span class="skeleton skeleton-table-row"></span></td></tr></tbody></table></div></article></div></section>
         <section id="page-history" class="page" hidden></section>
         <section id="page-settings" class="page" hidden></section>
       </div>
     </main>
-  </div>
-
-  <div id="loadingOverlay" class="loading-overlay">
-    <div class="loading-card">
-      <div class="loading-mark loading-logo-mark"><img class="brand-logo-image" src="./assets/brand-logo.png" alt=""><span class="brand-logo-fallback">JP</span></div>
-      <div>
-        <strong>Opening Claw Closing</strong>
-        <span>Loading your workspace…</span>
-      </div>
-    </div>
   </div>
 
   <div id="modalRoot"></div>

@@ -1566,6 +1566,7 @@ function showMachineModal(machine) {
           <button id="m-image-select" class="btn btn-secondary btn-compact" type="button">${icon("image", 15)} Upload Image</button>
           <button id="m-image-remove" class="btn btn-ghost btn-compact" type="button" ${existingImage ? "" : "disabled"}>${icon("trash", 15)} Remove</button>
         </div>
+        <div id="m-image-progress" class="upload-progress" hidden aria-live="polite"><span id="m-image-progress-text">Reading image...</span><div class="upload-progress-track"><div id="m-image-progress-indicator" class="upload-progress-indicator"></div></div></div>
       </div>
     </div>
     <div class="grid-2">
@@ -1622,6 +1623,9 @@ function showMachineModal(machine) {
   const selectButton = document.getElementById("m-image-select");
   const removeButton = document.getElementById("m-image-remove");
   const preview = document.getElementById("machineImagePreview");
+  const progress = document.getElementById("m-image-progress");
+  const progressText = document.getElementById("m-image-progress-text");
+  const progressIndicator = document.getElementById("m-image-progress-indicator");
 
   selectButton.onclick = () => fileInput.click();
   fileInput.onchange = () => {
@@ -1632,15 +1636,27 @@ function showMachineModal(machine) {
       fileInput.value = "";
       return;
     }
+    progress.hidden = false;
+    progressText.textContent = "Reading image...";
+    progressIndicator.style.width = "38%";
     const reader = new FileReader();
+    reader.onprogress = event => {
+      if (!event.lengthComputable) return;
+      const percent = Math.max(1, Math.round((event.loaded / event.total) * 100));
+      progressText.textContent = `Reading image... ${percent}%`;
+      progressIndicator.style.width = `${percent}%`;
+      progressIndicator.style.animation = "none";
+    };
     reader.onload = () => {
       pendingImageData = String(reader.result || "");
       removeImage = false;
       preview.classList.add("has-image");
       preview.innerHTML = `<img src="${escapeHtml(pendingImageData)}" alt="Machine preview">`;
       removeButton.disabled = false;
+      progressText.textContent = "Image ready to save";
+      progressIndicator.style.width = "100%";
     };
-    reader.onerror = () => toast("Cannot read image", "Choose another image file.", "error");
+    reader.onerror = () => { progress.hidden = true; toast("Cannot read image", "Choose another image file.", "error"); };
     reader.readAsDataURL(file);
   };
   removeButton.onclick = () => {
@@ -1678,6 +1694,8 @@ async function refreshReportSummary() {
 }
 
 async function exportMonthlyReport() {
+  const button = document.getElementById("exportMonthly");
+  const loading = setInlineButtonLoading(button, "Exporting...");
   try {
     const month = document.getElementById("reportMonth").value;
     const result = await api("/api/reports/monthly", { method: "POST", body: JSON.stringify({month}) });
@@ -1693,6 +1711,7 @@ async function exportMonthlyReport() {
     }
     toast("Monthly report created", result.path);
   } catch (error) { toast("Cannot export report", error.message, "error"); }
+  finally { if (loading) clearInlineButtonLoading(button); }
 }
 
 function showModal(title, body, saveLabel, onSave) {
@@ -1706,6 +1725,9 @@ function showModal(title, body, saveLabel, onSave) {
     if (button.dataset.submitting === "true") return;
     button.dataset.submitting = "true";
     button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    button.dataset.loadingLabel = button.textContent;
+    button.innerHTML = `<span class="loading-inline"><span class="loading-inline-spinner" aria-hidden="true"></span><span>Saving...</span></span>`;
     try {
       await onSave();
     } catch (error) {
@@ -1713,10 +1735,39 @@ function showModal(title, body, saveLabel, onSave) {
     } finally {
       button.dataset.submitting = "false";
       button.disabled = false;
+      button.removeAttribute("aria-busy");
+      button.textContent = button.dataset.loadingLabel || saveLabel;
     }
   };
 }
 function closeModal() { document.getElementById("modalRoot").innerHTML = ""; }
+function setInlineButtonLoading(button, label) {
+  if (!button || button.dataset.loading === "true") return false;
+  button.dataset.loading = "true";
+  button.dataset.loadingLabel = button.textContent;
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  button.innerHTML = `<span class="loading-inline"><span class="loading-inline-spinner" aria-hidden="true"></span><span>${escapeHtml(label)}</span></span>`;
+  return true;
+}
+function clearInlineButtonLoading(button) {
+  if (!button) return;
+  button.disabled = false;
+  button.removeAttribute("aria-busy");
+  button.dataset.loading = "false";
+  button.textContent = button.dataset.loadingLabel || button.textContent;
+}
+function finishInitialShellLoading() {
+  const shell = document.getElementById("appShell");
+  shell?.classList.remove("app-shell-loading");
+  shell?.setAttribute("aria-busy", "false");
+}
+function showInitialLoadingError(error) {
+  const page = document.getElementById("page-closing");
+  if (page) page.innerHTML = `<article class="card section-card"><div class="empty-state"><strong>Cannot open the application</strong><span>${escapeHtml(error.message)}</span><button id="retryInitialLoad" class="btn btn-primary" type="button">Try again</button></div></article>`;
+  document.getElementById("retryInitialLoad")?.addEventListener("click", () => window.location.reload());
+  finishInitialShellLoading();
+}
 function showConfirm(title, message, onConfirm) { showModal(title, `<p style="margin:0;color:#475467;line-height:1.55">${escapeHtml(message)}</p>`, "Confirm", async () => { closeModal(); await onConfirm(); }); }
 
 async function initialise() {
@@ -1734,22 +1785,26 @@ async function initialise() {
     setMeta("closing");
     renderUpdateButton();
     await ensureClosingPage();
-    document.getElementById("loadingOverlay").remove();
+    finishInitialShellLoading();
     if (desktopUpdaterSupported()) {
       await restoreAfterUpdate();
       checkForUpdates(false);
     }
   } catch (error) {
-    document.querySelector(".loading-card").innerHTML = `<div class="loading-mark">!</div><div><strong>Cannot open the application</strong><span>${escapeHtml(error.message)}</span></div>`;
+    showInitialLoadingError(error);
   }
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  if (isCloudStaging()) {
-    await window.clawCloudAuth?.ready;
-    if (!window.clawCloudAuth?.session()) return;
+  try {
+    if (isCloudStaging()) {
+      await window.clawCloudAuth?.ready;
+      if (!window.clawCloudAuth?.session()) return;
+    }
+    await initialise();
+  } catch (error) {
+    showInitialLoadingError(error);
   }
-  await initialise();
 });
 
 
@@ -4995,3 +5050,61 @@ window.addEventListener("claw-outlet-deleted", event => {
     toast("Outlet deleted", error.message || "Refresh the workspace to continue.", "error");
   });
 });
+
+/* v2.1.82 — classic, component-sized loading states.  These render the real
+   page geometry before an endpoint settles, then normal renderers replace them. */
+function loadingKpiCardsV2182(count = 4) {
+  return Array.from({ length: count }, () => '<article class="card kpi-card skeleton-kpi" aria-hidden="true"><span class="skeleton skeleton-kpi-label"></span><span class="skeleton skeleton-kpi-value"></span></article>').join("");
+}
+function loadingTableRowsV2182(columns, rows = 5) {
+  return Array.from({ length: rows }, () => `<tr>${Array.from({ length: columns }, () => '<td><span class="skeleton skeleton-cell"></span></td>').join("")}</tr>`).join("");
+}
+function loadingErrorV2182(page, title, error, retry) {
+  page.innerHTML = `<article class="card section-card"><div class="empty-state"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(error.message || "Please try again.")}</span><button class="btn btn-primary" type="button" data-loading-retry>Try again</button></div></article>`;
+  page.querySelector("[data-loading-retry]")?.addEventListener("click", () => { void retry(); });
+}
+function renderSettingsLoadingV2182() {
+  const page = document.getElementById("page-settings");
+  if (!page) return;
+  page.innerHTML = `<div class="settings-page" aria-busy="true"><article class="card section-card settings-card skeleton-card"><div class="skeleton-section-copy"><span class="skeleton skeleton-heading"></span><span class="skeleton skeleton-copy"></span></div><div class="skeleton-form-grid"><span class="skeleton skeleton-input"></span><span class="skeleton skeleton-input"></span></div></article><article class="card section-card settings-card"><div class="skeleton-section-copy"><span class="skeleton skeleton-heading"></span><span class="skeleton skeleton-copy"></span></div><div class="skeleton-form-grid"><span class="skeleton skeleton-input"></span><span class="skeleton skeleton-input"></span></div></article></div>`;
+}
+function renderHistoryLoadingV2182() {
+  const page = document.getElementById("page-history");
+  if (!page) return;
+  page.innerHTML = `<div class="history-kpi-grid" aria-busy="true">${loadingKpiCardsV2182(4)}</div><article class="card section-card history-records-card"><div class="history-toolbar"><div><span class="skeleton skeleton-heading"></span><span class="skeleton skeleton-copy"></span></div></div><div class="history-filters"><span class="skeleton skeleton-input"></span><span class="skeleton skeleton-input"></span><span class="skeleton skeleton-input"></span><span class="skeleton skeleton-input"></span></div><div class="data-table-wrap history-table-wrap"><table class="data-table history-table"><thead><tr><th>Date / Time</th><th>Closing ID</th><th>Sales</th><th>Coins Used</th><th>Products</th><th>Refill</th><th>Lose / Over</th><th>Closed / Verified</th><th>Actions</th></tr></thead><tbody>${loadingTableRowsV2182(9)}</tbody></table></div></article>`;
+}
+const renderSettingsV2182Skeleton = renderSettings;
+renderSettings = async function() {
+  renderSettingsLoadingV2182();
+  try { return await renderSettingsV2182Skeleton(); }
+  catch (error) { loadingErrorV2182(document.getElementById("page-settings"), "Cannot load settings", error, renderSettings); }
+};
+const renderHistoryV2182Skeleton = renderHistory;
+renderHistory = async function() {
+  renderHistoryLoadingV2182();
+  try { return await renderHistoryV2182Skeleton(); }
+  catch (error) { loadingErrorV2182(document.getElementById("page-history"), "Cannot load closing history", error, renderHistory); }
+};
+const refreshReportSummaryV2182Skeleton = refreshReportSummary;
+refreshReportSummary = async function() {
+  const kpis = document.getElementById("reportKpis");
+  if (kpis) kpis.innerHTML = loadingKpiCardsV2182(4);
+  return refreshReportSummaryV2182Skeleton();
+};
+const saveSettingsPayloadV2182Loading = saveSettingsPayload;
+saveSettingsPayload = async function(payload, message, section) {
+  const button = document.getElementById(section === "setup" ? "saveSetupSettings" : "saveMachineTypeSettings");
+  const loading = setInlineButtonLoading(button, "Saving...");
+  try { return await saveSettingsPayloadV2182Loading(payload, message, section); }
+  finally { if (loading) clearInlineButtonLoading(button); }
+};
+const renderStartShiftStateV2182Loading = renderStartShiftStateV2179;
+renderStartShiftStateV2179 = function() {
+  renderStartShiftStateV2182Loading();
+  const button = document.getElementById("startShiftButtonV2179");
+  if (button) button.onclick = async () => {
+    if (!setInlineButtonLoading(button, "Starting...")) return;
+    try { await newClosing(); }
+    catch (error) { toast("Cannot start shift", error.message, "error"); clearInlineButtonLoading(button); }
+  };
+};

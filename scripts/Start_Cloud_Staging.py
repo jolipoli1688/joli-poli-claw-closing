@@ -47,7 +47,6 @@ class Handler(SimpleHTTPRequestHandler):
             return
         config = {"mode": RUNTIME_MODE, "projectRef": REF, "supabaseUrl": url, "publishableKey": key, "apiBaseUrl": f"{url}/functions/v1/claw-api"}
         html = (WEB / "index.html").read_text(encoding="utf-8")
-        html = html.replace("Loading the Excel database\u2026", "Loading your workspace\u2026")
         cloud_bootstrap = (
             f'window.__CLAW_RUNTIME_MODE__={json.dumps(RUNTIME_MODE)};'
             f'</script><script>window.__CLAW_CLOUD_CONFIG__={json.dumps(config, separators=(",", ":"))};'
