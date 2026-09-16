@@ -4,18 +4,18 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>JOLI POLI Claw Closing</title>
-  <link rel="icon" type="image/png" href="./assets/brand-logo.png" />
+  <link rel="icon" type="image/png" href="/assets/brand-logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="./assets/styles.css?v=2.1.78-start-shift-premium" />
+  <link rel="stylesheet" href="/assets/styles.css?v=2.1.78-start-shift-premium" />
 </head>
 <body>
   <button id="mobileNavBackdrop" class="mobile-nav-backdrop" type="button" aria-label="Close navigation" tabindex="-1" hidden></button>
   <div id="appShell" class="app-shell sidebar-collapsed app-shell-loading" aria-busy="true">
     <aside id="sidebar" class="sidebar" aria-label="Main navigation">
       <div class="sidebar-brand">
-        <div class="brand-mark brand-logo-mark" aria-hidden="true"><img class="brand-logo-image" src="./assets/brand-logo.png" alt=""><span class="brand-logo-fallback">JP</span></div>
+        <div class="brand-mark brand-logo-mark" aria-hidden="true"><img class="brand-logo-image" src="/assets/brand-logo.png" alt=""><span class="brand-logo-fallback">JP</span></div>
         <div class="brand-copy">
           <strong>JOLI POLI</strong>
           <span>Claw Closing</span>
@@ -53,9 +53,13 @@
 
   <div id="modalRoot"></div>
   <div id="toastRoot" class="toast-root"></div>
-  <script>window.__CLAW_RUNTIME_MODE__="local";</script>
-  <script src="./claw-api.js?v=2.1.78-local-uat-1"></script>
-  <script src="./assets/zxing-browser.min.js?v=0.2.1"></script>
-  <script src="./assets/app.js?v=2.1.78-start-shift-premium"></script>
+  <script>window.__CLAW_RUNTIME_MODE__="cloud-staging";window.__CLAW_CLOUD_CONFIG__={"mode":"cloud-staging","projectRef":"fbvzqdqjqcbjopuinknw","supabaseUrl":"https://fbvzqdqjqcbjopuinknw.supabase.co","publishableKey":"sb_publishable_uzI3VSTfcWSz4ymIliqIgA_pqKEIRYe","apiBaseUrl":"https://fbvzqdqjqcbjopuinknw.supabase.co/functions/v1/claw-api"};</script>
+  <script src="/cloud-runtime.js?v=2.1.78-cloud-runtime-2"></script>
+  <script src="/cloud-api-adapter.js?v=2.1.78-cloud-routing-3"></script>
+  <script src="/claw-api.js?v=2.1.78-cloud-runtime-2"></script>
+  <script src="/cloud-profile.js?v=2.1.78-cloud-runtime-2"></script>
+  <script src="/cloud-user-management.js?v=2.1.78-cloud-runtime-2"></script>
+  <script src="/assets/zxing-browser.min.js?v=0.2.1"></script>
+  <script src="/assets/app.js?v=2.1.78-start-shift-premium"></script>
 </body>
 </html>

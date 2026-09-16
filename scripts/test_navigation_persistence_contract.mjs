@@ -1,0 +1,60 @@
+import { readFileSync } from "node:fs";
+import { strict as assert } from "node:assert";
+
+const app = readFileSync(new URL("../web/assets/app.js", import.meta.url), "utf8");
+const html = readFileSync(new URL("../web/index.html", import.meta.url), "utf8");
+const helperSource = app.match(/const UI_NAVIGATION_STORAGE_PREFIX[\s\S]*?(?=\nconst navItems)/)?.[0] || "";
+assert.ok(helperSource, "Navigation persistence must have one dedicated helper owner.");
+assert.match(helperSource, /function loadUiNavigationState\(/, "Navigation state must be loaded through one safe helper.");
+assert.match(helperSource, /function saveUiNavigationState\(/, "Navigation state must be saved through one safe helper.");
+assert.match(helperSource, /function clearInvalidUiNavigationState\(/, "Corrupt navigation state must be safely clearable.");
+assert.match(helperSource, /daily-closing[\s\S]*?closing-history[\s\S]*?primary-outcomes[\s\S]*?store-detail/, "Persisted names must be stable UI values rather than internal page IDs.");
+assert.doesNotMatch(helperSource, /performance-trend/, "Obsolete Performance Trend must not remain a supported persisted Dashboard tab.");
+assert.doesNotMatch(helperSource, /password|access_token|refresh_token|@claw\.internal/i, "Navigation persistence must not store credentials or technical auth email.");
+
+const storage = new Map();
+const localStorage = { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) };
+const state = { page: "closing", bootstrap: null };
+const pageMeta = { dashboard: [], closing: [], history: [], settings: [] };
+const window = { clawCloudAuth: { session: () => ({ user: { id: "user-a" } }) } };
+const dashboardDefaultFilters = () => ({ from: "2026-09-01", to: "2026-09-30", store_id: "all" });
+const displayToIsoDate = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")) ? String(value) : "";
+const helpers = new Function("state", "pageMeta", "localStorage", "window", "dashboardDefaultFilters", "displayToIsoDate", `${helperSource}; return { uiNavigationStorageKey, loadUiNavigationState, saveUiNavigationState };`)(state, pageMeta, localStorage, window, dashboardDefaultFilters, displayToIsoDate);
+const bootstrap = { cloud_context: { profile: { username: "operator-a", role: "developer" }, active_store: { id: "store-a" }, stores: [{ id: "store-a", is_active: true }] } };
+state.bootstrap = bootstrap;
+const userAKey = helpers.uiNavigationStorageKey(bootstrap);
+storage.set(userAKey, JSON.stringify({ page: "dashboard", dashboardTab: "performance-trend", dashboardFilters: { from: "2026-09-03", to: "2026-09-08", store_id: "store-a" } }));
+assert.deepEqual(helpers.loadUiNavigationState(bootstrap), { page: "dashboard", dashboardView: "outcomes", dashboardFilters: { from: "2026-09-03", to: "2026-09-08", store_id: "store-a" } }, "Obsolete Performance Trend state must restore Dashboard Primary Outcomes with its applied filters.");
+storage.set(userAKey, JSON.stringify({ page: "dashboard", dashboardTab: "corrupted-tab", dashboardFilters: { from: "2026-09-03", to: "2026-09-08", store_id: "store-a" } }));
+assert.equal(helpers.loadUiNavigationState(bootstrap)?.dashboardView, "outcomes", "Corrupted Dashboard tab state must fall back to Primary Outcomes.");
+
+window.clawCloudAuth.session = () => ({ user: { id: "user-b" } });
+assert.equal(helpers.loadUiNavigationState(bootstrap), null, "A different authenticated user must not inherit another user's navigation state.");
+window.clawCloudAuth.session = () => ({ user: { id: "user-a" } });
+storage.set(userAKey, "{not-json");
+assert.equal(helpers.loadUiNavigationState(bootstrap), null, "Malformed localStorage must not block startup.");
+storage.set(userAKey, JSON.stringify({ page: "dashboard", dashboardTab: "store-detail", dashboardFilters: { from: "invalid", to: "2026-09-08", store_id: "store-a" } }));
+assert.deepEqual(helpers.loadUiNavigationState(bootstrap)?.dashboardFilters, dashboardDefaultFilters(), "Invalid stored dates must fall back to the full local calendar month.");
+storage.set(userAKey, JSON.stringify({ page: "dashboard", dashboardTab: "primary-outcomes", dashboardFilters: { from: "2026-09-03", to: "2026-09-08", store_id: "removed-store" } }));
+assert.equal(helpers.loadUiNavigationState(bootstrap)?.dashboardFilters.store_id, "all", "An unauthorized persisted store must fall back to All Stores for Developer/Admin.");
+const outletBootstrap = { cloud_context: { profile: { username: "outlet-a", role: "outlet" }, active_store: { id: "store-a" }, stores: [{ id: "store-a", is_active: true }] } };
+assert.equal(helpers.loadUiNavigationState(outletBootstrap)?.dashboardFilters.store_id, "store-a", "Outlet restoration must remain constrained to its assigned outlet.");
+
+assert.match(app, /const restoredNavigation = loadUiNavigationState\(state\.bootstrap\);[\s\S]*?state\.page = restoredNavigation\?\.page \|\| "closing";[\s\S]*?dashboardView = restoredNavigation\?\.dashboardView \|\| "outcomes";[\s\S]*?const initialPageRender = navigate\(state\.page, \{ persist: false, forceRender: true \}\);[\s\S]*?finishInitialShellLoading\(\);[\s\S]*?await initialPageRender;/, "Bootstrap must restore navigation, bind/render its page synchronously, then unlock the shell before page data settles.");
+const initialiseSource = app.match(/async function initialise\(\)[\s\S]*?\n}\n\ndocument\.addEventListener\("DOMContentLoaded"/)?.[0] || "";
+assert.doesNotMatch(initialiseSource, /setMeta\("closing"\)|ensureClosingPage\(\)/, "Startup must not unconditionally initialize Daily Closing before restored navigation.");
+assert.match(app, /if \(persist\) saveUiNavigationState\(\);/, "Sidebar navigation must persist immediately.");
+assert.match(app, /dashboardFilters = \{ from, to, store_id: fixedOutlet \? filters\.store_id : document\.getElementById\("dashboardStore"\)\.value \|\| "all" \};\s*saveUiNavigationState\(\);/, "Only applied Dashboard filters must persist.");
+assert.match(app, /dashboardView = button\.dataset\.dashboardView === "store" \? "store" : "outcomes"; saveUiNavigationState\(\);/, "Dashboard tab changes must persist immediately and accept only the two supported tabs.");
+assert.match(app, /if \(dashboardView === "outcomes"\) void loadPrimaryOutcomesSales\(filters\);/, "Primary Outcomes must load the new Daily Sales Trend without changing dashboard navigation persistence.");
+assert.doesNotMatch(app, /dashboardTrend|dashboardDailyTrend|dashboardSalesChart|dashboardChartYAxis|dashboardRechartsMonotoneXPath|dashboardTrendTickIndexes|dashboard-chart-/, "Dashboard navigation must not restore the old Performance Trend presentation.");
+assert.doesNotMatch(initialiseSource, /renderDailyClosing|newClosing\(/, "Dashboard restoration must not initialize a Daily Closing Draft.");
+assert.match(app, /navigate = async function\(page, options = \{\}\) \{\s*const result = await navigateV2187GlobalOutletSwitcher\(page, options\);/, "The late global-outlet navigation wrapper must forward startup force-render options.");
+assert.match(initialiseSource, /finally \{\s*finishInitialShellLoading\(\);\s*\}/, "Global boot loading must be released even when startup throws.");
+assert.match(app, /if \(!window\.clawCloudAuth\?\.session\(\)\) \{\s*finishInitialShellLoading\(\);\s*return;/, "Signed-out Cloud startup must not leave the global loader active.");
+assert.match(app, /renderGeneration !== state\.renderGeneration \|\| state\.page !== "dashboard"/, "Slow Dashboard responses must not overwrite a later navigation target.");
+assert.match(app, /function renderDashboardCached\(\) \{\s*if \(state\.page !== "dashboard"\) return;/, "Dashboard data rendering must be page-owned rather than able to update another page.");
+assert.match(html, /<h1 id="pageTitle">Claw Closing<\/h1>/, "The loading shell must not flash a Daily Closing page title before restored navigation.");
+assert.doesNotMatch(html, /nav-button active" data-page="closing"/, "The loading shell must not flash Daily Closing as the active sidebar page before restoration.");
+
+console.log("PASS - user-scoped page/tab/filter navigation persistence and Dashboard-first bootstrap contract.");

@@ -13,5 +13,8 @@
   },
   "devDependencies": {
     "@supabase/supabase-js": "2.112.4"
+  },
+  "dependencies": {
+    "@zxing/browser": "0.2.1"
   }
 }

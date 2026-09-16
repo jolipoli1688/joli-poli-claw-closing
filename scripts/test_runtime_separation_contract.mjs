@@ -18,7 +18,7 @@ assert.ok(!index.includes("cloud-runtime.js"), "LOCAL HTML must not load the clo
 assert.ok(!index.includes("cloud-api-adapter.js"), "LOCAL HTML must not load the cloud adapter");
 assert.ok(!index.includes("__CLAW_CLOUD_CONFIG__"), "LOCAL HTML must not inject cloud configuration");
 assert.match(index, /__CLAW_RUNTIME_MODE__="local"/, "LOCAL HTML must declare the local runtime mode");
-assert.match(index, /loading-page-skeleton/, "LOCAL initial shell must use implementation-neutral skeleton content");
+assert.match(index, /page-loading/, "LOCAL initial shell must use the implementation-neutral dot loader");
 assert.ok(!index.includes("Loading the Excel database"), "LOCAL loading copy must not expose database details");
 
 assert.match(localConfig, /CLAW_RUNTIME_MODE/, "local backend must require an explicit runtime mode");
@@ -29,7 +29,7 @@ assert.match(launcher, /RUNTIME_MODE = "cloud-staging"/, "cloud host must have o
 assert.match(launcher, /window\.__CLAW_RUNTIME_MODE__=\"local\"/, "cloud host must replace the base local runtime mode");
 assert.match(launcher, /Cloud runtime mode was not injected/, "cloud host must fail closed when runtime mode injection fails");
 assert.match(launcher, /Cloud configuration is unavailable/, "missing cloud configuration must show a cloud-specific error");
-assert.match(launcher, /WEB \/ "index\.html"/, "cloud host must serve the same implementation-neutral skeleton shell");
+assert.match(launcher, /WEB \/ "index\.html"/, "cloud host must serve the same implementation-neutral loading shell");
 assert.match(launcher, /cloud-api-adapter\.js/, "only the cloud host may inject the cloud adapter");
 for (const forbidden of ["local_data", "claw_machine_database", "machine_images", "Claw_Closing_App", "openpyxl", ".xlsx"]) {
   assert.ok(!launcher.includes(forbidden), `cloud host must not reference ${forbidden}`);

@@ -15,7 +15,7 @@ assert.match(app, /function isoToDisplayDate\(value\)/, "the browser must centra
 assert.match(app, /candidate\.getUTCFullYear\(\) !== y/, "invalid display calendar dates must be rejected");
 assert.match(app, /report_date: canonicalClosingDate\(state\.closing\.report_date\)/, "all save/autosave/finalization payloads must use ISO report dates");
 assert.match(app, /const reportDate = displayToIsoDate\(value\)/, "date navigation requests must use ISO report dates");
-assert.match(app, /\/api\/active-closing\?report_date=\$\{isoToday\(\)\}/, "Continue Shift lookup must request an ISO date");
+assert.match(app, /api\("\/api\/active-closing"\)/, "Continue Shift lookup must be outlet-wide rather than date-scoped");
 assert.match(app, /closingPayload\("Draft"\)/, "refill closing_payload must continue to use the canonical payload builder");
 assert.match(edge, /text\.match\(\/\^\(\\d\{2\}\)-\(\\d\{2\}\)-\(\\d\{4\}\)\$\//, "Edge must defensively accept DD-MM-YYYY");
 assert.match(edge, /parsed\.getUTCMonth\(\) !== Number\(month\) - 1/, "Edge must reject invalid calendar dates");

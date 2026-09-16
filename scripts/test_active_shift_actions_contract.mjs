@@ -12,6 +12,13 @@ const [edge, app] = await Promise.all([
 assert.match(app, /closingAutosaveStatusV2181/, "every active draft must render a top action autosave status");
 assert.match(app, /closeShiftBtnV2181/, "every active draft must render Close Shift in the top action area");
 assert.match(app, /voidCurrentShiftBtnV2181/, "Developer/Admin active drafts must render Void Shift");
+assert.match(app, /function renderReviewTopActions\(html = ""\) \{\s*clearReviewTopActions\(\);\s*if \(state\.page !== "closing"\) return;/, "shared review actions must never render outside Daily Closing");
+assert.match(app, /const renderClosingV2202PageScopedActions = renderClosing;\s*renderClosing = function\(\) \{\s*if \(state\.page !== "closing"\) \{\s*setActions\(""\);\s*renderPrintButton\(\);\s*return;/, "late Closing renders must clear action surfaces without touching the active Draft off-page");
+assert.match(app, /async function navigate\(page, options = \{\}\) \{[\s\S]*?state\.page = page;[\s\S]*?setActions\(""\);[\s\S]*?if \(page === "dashboard"\) await renderDashboard\(\);/, "navigation must synchronously clear Daily Closing actions before Dashboard renders");
+assert.match(app, /if \(page === "closing"\) \{\s*if \(String\(state\.closingStatus \|\| ""\)\.toLowerCase\(\) === "draft" && state\.closing\) renderClosing\(\);\s*else await ensureClosingPage\(\);/, "returning to Daily Closing must restore an in-memory Draft without reloading or mutating it");
+assert.match(app, /const visible = state\.page === "closing" && Boolean\(state\.closing\);/, "Print must remain scoped to Daily Closing");
+assert.match(app, /async function renderHistory\(\) \{\s*setActions\(""\);/, "Closing History must own no stale Daily Closing actions");
+assert.match(app, /async function renderSettings\(\) \{\s*setActions\(""\);/, "Settings must own no stale Daily Closing actions");
 assert.match(app, /\["developer", "admin"\]/, "Void Shift must follow the existing Developer/Admin policy");
 assert.match(app, /await flushAutosaveV2179\(\); openClosingReviewV2179DailyWorkflow/, "Close Shift must flush before Review");
 assert.match(app, /Void this shift\?/, "current shift void requires confirmation");
@@ -21,7 +28,7 @@ assert.match(app, /state\.closingId = null[\s\S]*state\.closing = null[\s\S]*awa
 assert.match(app, /autosaveGenerationV2181 \+= 1/, "void must invalidate a pending autosave generation");
 assert.match(app, /generation !== autosaveGenerationV2181 \|\| closingId !== state\.closingId/, "stale autosave responses must not mutate a voided draft");
 assert.match(edge, /existing\.data\.status !== "draft"/, "the server must reject post-void draft saves");
-assert.match(edge, /\.neq\("status", "void"\)\.maybeSingle\(\)/, "same-date replacement must ignore voided closings");
+assert.match(edge, /\.eq\("status", "draft"\)\.maybeSingle\(\)/, "same-date restart must find only an active Draft");
 assert.match(edge, /readMachines\(ctx, true\)/, "replacement opening templates must use active machines/styles only");
 assert.match(edge, /includeInactiveStyles \|\| style\.is_active/, "inactive RED/BLUE styles must stay out of a replacement template");
 

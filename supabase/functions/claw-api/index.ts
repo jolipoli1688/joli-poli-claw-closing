@@ -74,11 +74,11 @@ async function machineTypes(ctx: Context) {
   if (error) throw new Error(error.message);
   return (data || []).map((row: any) => {
     const rule = (row.store_machine_type_rules || []).find((item: any) => item.store_id === ctx.store.id && item.is_active);
-    return { name: row.name, coins_per_play: integer(rule?.coins_per_play) || integer(row.coins_per_play) };
+    return { id: row.id, name: row.name, coins_per_play: integer(rule?.coins_per_play) || integer(row.coins_per_play) };
   });
 }
 function header(row: any) {
-  return { Closing_ID: row.id, Report_Date: row.report_date, Outlet: row.store_name_snapshot || "", Cash_Sales: num(row.total_sales_usd), Cash_Sales_KHR: num(row.cash_sales_khr), Cash_Transactions: integer(row.cash_transactions), ABA_Sales: num(row.aba_sales_usd), ABA_Transactions: integer(row.aba_transactions), Adjustment: num(row.adjustment_usd), Beginning_Coins: integer(row.beginning_coins), Coins_Added: integer(row.coins_added), Final_Coins: integer(row.final_coins), Coins_Dispensed: integer(row.coins_dispensed), Coin_Return: integer(row.coin_return), Lose_Over: integer(row.lose_over), Total_Sales: num(row.total_sales_usd), Total_Transactions: integer(row.total_transactions), Average_Sale_Value_Per_Coin: num(row.average_sale_value_per_coin), Machine_Coins_Used: integer(row.machine_coins_used), Coin_Variance: integer(row.coin_variance), Total_Prizes_Won: integer(row.total_products), Average_Coins_Per_Prize: num(row.average_coins_per_prize), Average_Revenue_Per_Prize: num(row.avg_per_product_usd), Discount_USD: num(row.discount_usd), Discount_Percent: num(row.discount_percent), Overall_Win_Rate: num(row.overall_win_rate), Closing_Status: row.closing_status, Workflow_Status: row.status === "finalized" ? "Finalized" : row.status === "void" ? "Void" : "Draft", Closed_By: row.closed_by_name_snapshot || "", Verified_By: row.verified_by_name_snapshot || "", Notes: row.notes || "", Finalized_At: row.finalized_at, Updated_At: row.updated_at };
+  return { Closing_ID: row.id, Closing_Code: row.closing_code || "", Report_Date: row.report_date, Outlet: row.store_name_snapshot || "", Cash_Sales: num(row.total_sales_usd), Cash_Sales_KHR: num(row.cash_sales_khr), Cash_Transactions: integer(row.cash_transactions), ABA_Sales: num(row.aba_sales_usd), ABA_Transactions: integer(row.aba_transactions), Adjustment: num(row.adjustment_usd), Beginning_Coins: integer(row.beginning_coins), Coins_Added: integer(row.coins_added), Final_Coins: integer(row.final_coins), Coins_Dispensed: integer(row.coins_dispensed), Coin_Return: integer(row.coin_return), Lose_Over: integer(row.lose_over), Total_Sales: num(row.total_sales_usd), Total_Transactions: integer(row.total_transactions), Average_Sale_Value_Per_Coin: num(row.average_sale_value_per_coin), Machine_Coins_Used: integer(row.machine_coins_used), Coin_Variance: integer(row.coin_variance), Total_Prizes_Won: integer(row.total_products), Average_Coins_Per_Prize: num(row.average_coins_per_prize), Average_Revenue_Per_Prize: num(row.avg_per_product_usd), Discount_USD: num(row.discount_usd), Discount_Percent: num(row.discount_percent), Overall_Win_Rate: num(row.overall_win_rate), Closing_Status: row.closing_status, Workflow_Status: row.status === "finalized" ? "Finalized" : row.status === "void" ? "Void" : "Draft", Closed_By: row.closed_by_name_snapshot || "", Verified_By: row.verified_by_name_snapshot || "", Notes: row.notes || "", Finalized_At: row.finalized_at, Updated_At: row.updated_at };
 }
 
 async function readMachines(ctx: Context, activeOnly = false, includeInactiveStyles = false) {
@@ -148,6 +148,28 @@ async function closingDetail(ctx: Context, closingId: string) {
     })),
   };
 }
+async function hydrateClosingProductImages(ctx: Context, closing: any, machines: any[]) {
+  const products = (machines || []).flatMap((machine: any) => machine.closing_product_entries || []);
+  const styleIds = [...new Set(products.map((product: any) => String(product.machine_style_id || "")).filter(Boolean))];
+  const masterImagePaths = new Map<string, string>();
+  if (closing.status === "draft" && styleIds.length) {
+    const master = await ctx.admin.from("machine_styles").select("id,image_path,machines!inner(store_id)").in("id", styleIds).eq("machines.store_id", ctx.store.id);
+    if (master.error) throw new Error(master.error.message);
+    for (const style of master.data || []) masterImagePaths.set(String(style.id), String(style.image_path || ""));
+  }
+  const hydrated = await Promise.all(products.map(async (product: any) => {
+    // Historical snapshot paths are authoritative. Only an active Draft may
+    // display the current master image when its snapshot predates image support.
+    const snapshotPath = String(product.image_object_key_snapshot || "");
+    const imagePath = snapshotPath || (closing.status === "draft" ? masterImagePaths.get(String(product.machine_style_id || "")) || "" : "");
+    if (!imagePath) return { ...product, image_file: "", image_url: "" };
+    const signed = await ctx.admin.storage.from(IMAGE_BUCKET).createSignedUrl(imagePath, 300);
+    if (signed.error) throw new Error(`Cannot sign closing product image: ${signed.error.message}`);
+    return { ...product, image_file: imagePath, image_url: signed.data?.signedUrl || "" };
+  }));
+  let index = 0;
+  return (machines || []).map((machine: any) => ({ ...machine, closing_product_entries: (machine.closing_product_entries || []).map(() => hydrated[index++]) }));
+}
 async function monthlyClosings(ctx: Context, month: string) {
   if (!/^\d{4}-\d{2}$/.test(month)) throw new Error("A valid month is required.");
   const start = `${month}-01`;
@@ -156,6 +178,125 @@ async function monthlyClosings(ctx: Context, month: string) {
   const { data, error } = await ctx.admin.from("daily_closings").select("*").eq("store_id", ctx.store.id).eq("status", "finalized").gte("report_date", start).lt("report_date", end).order("report_date");
   if (error) throw new Error(error.message);
   return data || [];
+}
+
+function dashboardDate(value: string, fallback: string) {
+  const date = String(value || fallback);
+  const match = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) throw new Error("Dashboard dates must use YYYY-MM-DD.");
+  const parsed = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  if (parsed.getUTCFullYear() !== Number(match[1]) || parsed.getUTCMonth() !== Number(match[2]) - 1 || parsed.getUTCDate() !== Number(match[3])) throw new Error("Dashboard dates must be calendar dates.");
+  return date;
+}
+
+function dashboardStoreScope(ctx: Context, requestedStoreId: string) {
+  const allowed = (ctx.stores || []).filter((store: any) => store?.is_active !== false);
+  if (ctx.profile.role === "outlet") {
+    if (requestedStoreId !== "all" && requestedStoreId !== String(ctx.store.id)) return null;
+    return allowed.filter((store: any) => String(store.id) === String(ctx.store.id));
+  }
+  if (requestedStoreId === "all") return allowed;
+  return allowed.filter((store: any) => String(store.id) === requestedStoreId);
+}
+
+function dashboardMoney(value: number) { return Number(value.toFixed(2)); }
+
+function dashboardTrendToday(now = new Date()) { return now.toISOString().slice(0, 10); }
+
+function dashboardTrendMonthRange(today = dashboardTrendToday()) {
+  const [year, month] = today.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return { from: `${year}-${String(month).padStart(2, "0")}-01`, to: `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}` };
+}
+
+function dashboardTrendDates(from: string, to: string) {
+  const dates: string[] = [];
+  const cursor = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  while (cursor <= end) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+function dashboardTrendPeriod(from: string, to: string) {
+  const dates = dashboardTrendDates(from, to);
+  const start = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  const sameMonth = start.getUTCFullYear() === end.getUTCFullYear() && start.getUTCMonth() === end.getUTCMonth();
+  const isFullMonth = sameMonth && start.getUTCDate() === 1 && end.getUTCDate() === new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0)).getUTCDate();
+  const monthLabel = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  const shortMonthLabel = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" });
+  const label = isFullMonth ? monthLabel.format(start) : sameMonth
+    ? `${shortMonthLabel.format(start)} ${start.getUTCDate()}–${end.getUTCDate()}, ${start.getUTCFullYear()}`
+    : start.getUTCFullYear() === end.getUTCFullYear()
+      ? `${shortMonthLabel.format(start)}–${shortMonthLabel.format(end)} ${end.getUTCFullYear()}`
+      : `${shortMonthLabel.format(start)} ${start.getUTCFullYear()}–${shortMonthLabel.format(end)} ${end.getUTCFullYear()}`;
+  return { dateFrom: from, dateTo: to, label, dayCount: dates.length, isFullMonth };
+}
+
+async function dashboardDailyTrendAnalytics(ctx: Context, from: string, to: string, stores: any[], today = dashboardTrendToday()) {
+  const storeIds = stores.map(store => store.id);
+  // This is intentionally one bounded finalized-closing query. The browser
+  // receives only an authorized, date-aggregated daily series.
+  const { data, error } = await ctx.admin.from("daily_closings").select("report_date,total_sales_usd").in("store_id", storeIds).eq("status", "finalized").gte("report_date", from).lte("report_date", to).order("report_date");
+  if (error) throw new Error(error.message);
+  const salesByDate = new Map<string, number>();
+  for (const closing of data || []) salesByDate.set(String(closing.report_date), num(salesByDate.get(String(closing.report_date))) + num(closing.total_sales_usd));
+  const rows: { date: string; sales: number | null }[] = dashboardTrendDates(from, to).map(date => ({
+    date,
+    // Keep future dates on the axis, but never turn them into plotted zeroes.
+    sales: date > today ? null : dashboardMoney(num(salesByDate.get(date))),
+  }));
+  const totalSales = dashboardMoney(rows.reduce((sum, row) => sum + (typeof row.sales === "number" ? row.sales : 0), 0));
+  return { period: dashboardTrendPeriod(from, to), totalSales, hasData: (data || []).length > 0, rows };
+}
+
+async function dashboardAnalytics(ctx: Context, from: string, to: string, requestedStoreId: string, stores: any[]) {
+  const storeIds = stores.map(store => store.id);
+  const { data, error } = await ctx.admin.from("daily_closings").select("store_id,report_date,total_sales_usd,total_products,discount_usd").in("store_id", storeIds).eq("status", "finalized").gte("report_date", from).lte("report_date", to).order("report_date");
+  if (error) throw new Error(error.message);
+  const daily = new Map<string, number>();
+  const performance = new Map<string, { total_sales: number; quantity: number; discount: number }>();
+  const totals = { total_sales: 0, quantity: 0, discount: 0 };
+  for (const closing of data || []) {
+    const sales = num(closing.total_sales_usd);
+    const quantity = integer(closing.total_products);
+    const discount = num(closing.discount_usd);
+    daily.set(closing.report_date, num(daily.get(closing.report_date)) + sales);
+    const key = `${String(closing.report_date)}:${String(closing.store_id)}`;
+    const row = performance.get(key) || { total_sales: 0, quantity: 0, discount: 0 };
+    performance.set(key, row);
+    if (row) { row.total_sales += sales; row.quantity += quantity; row.discount += discount; }
+    totals.total_sales += sales;
+    totals.quantity += quantity;
+    totals.discount += discount;
+  }
+  const dailyTrend: { date: string; sales: number }[] = [];
+  const dates: string[] = [];
+  const cursor = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  while (cursor <= end) {
+    const date = cursor.toISOString().slice(0, 10);
+    dates.push(date);
+    dailyTrend.push({ date, sales: dashboardMoney(num(daily.get(date))) });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  const storePerformance = dates.flatMap(date => stores.map(store => {
+    const row = performance.get(`${date}:${String(store.id)}`) || { total_sales: 0, quantity: 0, discount: 0 };
+    return {
+      date,
+      store_id: String(store.id),
+      store_code: String(store.code || ""),
+      store_name: String(store.name || store.code || "Store"),
+      total_sales: dashboardMoney(row.total_sales),
+      quantity: row.quantity,
+      discount: dashboardMoney(row.discount),
+      average_per_product: row.quantity > 0 ? dashboardMoney(row.total_sales / row.quantity) : 0,
+    };
+  }));
+  return { has_data: (data || []).length > 0, filters: { from, to, store_id: requestedStoreId }, kpis: { total_sales: dashboardMoney(totals.total_sales), quantity: totals.quantity, average_per_product: totals.quantity > 0 ? dashboardMoney(totals.total_sales / totals.quantity) : 0, discount: dashboardMoney(totals.discount) }, daily_trend: dailyTrend, store_performance: storePerformance };
 }
 
 function calculate(payload: any) {
@@ -197,8 +338,16 @@ function validShiftDate(value: unknown) {
   return reportDate;
 }
 
-async function activeClosingForDate(ctx: Context, reportDate: string) {
-  const active = await ctx.admin.from("daily_closings").select("id,status").eq("store_id", ctx.store.id).eq("report_date", reportDate).neq("status", "void").maybeSingle();
+function invoiceCode(storeCode: unknown, reportDate: string, sequence: number) {
+  const code = String(storeCode || "").trim();
+  const match = reportDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!code || !match || !Number.isInteger(sequence) || sequence < 1) throw new Error("A valid outlet code, report date, and invoice sequence are required.");
+  const [, year, month, day] = match;
+  return `${code}-${day}${month}${year.slice(-2)}${sequence}`;
+}
+
+async function activeDraftForStore(ctx: Context) {
+  const active = await ctx.admin.from("daily_closings").select("id,status,report_date,closing_code,updated_at").eq("store_id", ctx.store.id).eq("status", "draft").maybeSingle();
   if (active.error) throw new Error(active.error.message);
   return active.data;
 }
@@ -206,14 +355,14 @@ async function activeClosingForDate(ctx: Context, reportDate: string) {
 async function openingTemplate(ctx: Context, reportDate: string) {
   const [machines, previous] = await Promise.all([
     readMachines(ctx, true),
-    ctx.admin.from("daily_closings").select("id").eq("store_id", ctx.store.id).eq("status", "finalized").lt("report_date", reportDate).order("report_date", { ascending: false }).limit(1).maybeSingle(),
+    ctx.admin.from("daily_closings").select("id").eq("store_id", ctx.store.id).eq("status", "finalized").lte("report_date", reportDate).order("report_date", { ascending: false }).order("finalized_at", { ascending: false }).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   const carryForward = new Map<string, number>();
   if (previous.data?.id) {
     const entries = await ctx.admin.from("closing_machine_entries").select("closing_product_entries(machine_style_id,final_qty)").eq("closing_id", previous.data.id);
     for (const entry of entries.data || []) for (const product of entry.closing_product_entries || []) carryForward.set(product.machine_style_id, integer(product.final_qty));
   }
-  return { report_date: reportDate, outlet: ctx.store.name, machines: machines.map((machine: any) => ({ machine_id: machine.Machine_ID, machine_name: machine.Machine_Name, machine_type: machine.Machine_Type, products: machine.Products.map((product: any) => ({ ...product, begin_qty: carryForward.get(product.product_id) ?? integer(product.starting_qty), refill_qty: 0, final_qty: "" })), barcodes: machine.Barcodes, image_url: machine.Image_URL, capacity: 0, begin_prize: 0, refill_prize: 0, final_prize: "", begin_coin_meter: "", final_coin_meter: "", manual_coins_used: "", status: "Working", notes: "" })) };
+  return { report_date: reportDate, outlet: ctx.store.name, machines: machines.map((machine: any) => ({ machine_id: machine.Machine_ID, machine_name: machine.Machine_Name, machine_type: machine.Machine_Type, sort_order: machine.Sort_Order, products: machine.Products.map((product: any) => ({ ...product, begin_qty: carryForward.get(product.product_id) ?? integer(product.starting_qty), refill_qty: 0, final_qty: "" })), barcodes: machine.Barcodes, image_url: machine.Image_URL, capacity: 0, begin_prize: 0, refill_prize: 0, final_prize: "", begin_coin_meter: "", final_coin_meter: "", manual_coins_used: "", status: "Working", notes: "" })) };
 }
 
 async function saveClosing(ctx: Context, payload: any) {
@@ -222,35 +371,60 @@ async function saveClosing(ctx: Context, payload: any) {
   if (workflow === "finalized" && (!canFinalize(ctx) || !payload.verified_by)) throw new Error(!canFinalize(ctx) ? "Not authorized to finalize." : "Verified By is required before finalizing.");
   const settings = await ctx.admin.from("store_settings").select("*").eq("store_id", ctx.store.id).single();
   if (settings.error) throw new Error(settings.error.message);
-  const result = calculate(payload);
+  // A stale browser payload must never reintroduce a retired machine. Keep
+  // unknown/cross-outlet IDs as hard failures, but omit masters retired since
+  // this draft was last rendered before calculating or persisting the draft.
+  const submittedMachines = Array.isArray(payload.machines) ? payload.machines : [];
+  const configuredMachines = await ctx.admin.from("machines").select("id,is_active").eq("store_id", ctx.store.id);
+  if (configuredMachines.error) throw new Error(configuredMachines.error.message);
+  const configuredById = new Map((configuredMachines.data || []).map((machine: any) => [String(machine.id), machine]));
+  const machines = submittedMachines.filter((source: any) => {
+    const machineId = String(source?.machine_id || source?.Machine_ID || "");
+    const machine = configuredById.get(machineId);
+    if (!machine) throw new Error("A closing machine does not belong to the active store.");
+    return machine.is_active;
+  });
+  const result = calculate({ ...payload, machines });
   if (workflow === "finalized" && result.coin_variance !== 0) throw new Error("The closing cannot be finalized until the coin variance is zero.");
   const now = new Date().toISOString();
   const reportDate = validShiftDate(payload.report_date);
   const record: any = { store_id: ctx.store.id, report_date: reportDate, status: "draft", closed_by_user_id: ctx.userId, closed_by_name_snapshot: String(payload.closed_by || ""), verified_by_name_snapshot: String(payload.verified_by || ""), cash_sales_khr: num(payload.sales?.cash_sales_khr ?? payload.sales?.cash_sales), cash_transactions: integer(payload.sales?.cash_transactions), aba_sales_usd: num(payload.sales?.aba_sales), aba_transactions: integer(payload.sales?.aba_transactions), adjustment_usd: num(payload.sales?.adjustment), beginning_coins: integer(payload.sales?.beginning_coins), coins_added: integer(payload.sales?.coins_added), final_coins: integer(payload.sales?.final_coins), exchange_rate_snapshot: num(payload.sales?.exchange_rate_usd_khr) || num(settings.data.exchange_rate_khr_per_usd), price_per_coin_snapshot: num(payload.sales?.price_per_coin_usd) || num(settings.data.price_per_coin_usd), currency_code_snapshot: settings.data.currency_code || "USD", variance_tolerance_snapshot: integer(settings.data.variance_tolerance), store_code_snapshot: ctx.store.code, store_name_snapshot: ctx.store.name, created_by: ctx.userId, notes: String(payload.notes || ""), total_sales_usd: result.total_sales, coins_dispensed: result.coins_dispensed, machine_coins_used: result.machine_coins_used, coin_variance: result.coin_variance, coins_used: result.machine_coins_used, coin_return: result.machine_coins_used, lose_over: result.coin_variance, total_products: result.total_prizes_won, average_sale_value_per_coin: result.average_sale_value_per_coin, average_coins_per_prize: result.average_coins_per_prize, avg_per_product_usd: result.average_revenue_per_prize, closing_status: result.closing_status, updated_at: now };
   let closingId = String(payload.closing_id || "");
   if (closingId) {
-    const existing = await ctx.admin.from("daily_closings").select("id,status,store_id").eq("id", closingId).single();
+    const existing = await ctx.admin.from("daily_closings").select("id,status,store_id,report_date").eq("id", closingId).single();
     if (existing.error || existing.data.store_id !== ctx.store.id || existing.data.status !== "draft") throw new Error("Only an authorized draft can be edited.");
+    // The report date belongs to the Draft's original shift; continuing it on
+    // a later calendar day must not silently rewrite that history.
+    record.report_date = existing.data.report_date;
     const updated = await ctx.admin.from("daily_closings").update(record).eq("id", closingId);
     if (updated.error) throw new Error(updated.error.message);
   } else {
-    const active = await activeClosingForDate(ctx, reportDate);
-    if (active?.status === "finalized") throw new Error("This shift is already closed and cannot be replaced.");
-    if (active?.status === "draft") {
-      closingId = active.id;
-      const updated = await ctx.admin.from("daily_closings").update(record).eq("id", closingId);
-      if (updated.error) throw new Error(updated.error.message);
-    } else {
-      record.closing_code = `STG-${record.report_date.replaceAll("-", "")}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const active = await activeDraftForStore(ctx);
+      if (active?.status === "draft") {
+        closingId = active.id;
+        record.report_date = active.report_date;
+        const updated = await ctx.admin.from("daily_closings").update(record).eq("id", closingId);
+        if (updated.error) throw new Error(updated.error.message);
+        break;
+      }
+      const sequence = await ctx.admin.from("daily_closings").select("id", { count: "exact", head: true }).eq("store_id", ctx.store.id).eq("report_date", reportDate);
+      if (sequence.error) throw new Error(sequence.error.message);
+      record.closing_code = invoiceCode(ctx.store.code, reportDate, (sequence.count || 0) + 1);
       const created = await ctx.admin.from("daily_closings").insert(record).select("id").single();
-      if (created.error) throw new Error(created.error.message);
-      closingId = created.data.id;
+      if (!created.error) {
+        closingId = created.data.id;
+        break;
+      }
+      if (!isUniqueViolation(created.error) || attempt === 4) throw new Error(created.error.message);
     }
   }
-  const machines = payload.machines || [];
   for (const source of machines) {
-    const master = await ctx.admin.from("machines").select("*, machine_types(name), machine_styles(*)").eq("id", String(source.machine_id || source.Machine_ID)).eq("store_id", ctx.store.id).single();
-    if (master.error) throw new Error("A closing machine does not belong to the active store.");
+    const master = await ctx.admin.from("machines").select("*, machine_types(name), machine_styles(*)").eq("id", String(source.machine_id || source.Machine_ID)).eq("store_id", ctx.store.id).eq("is_active", true).maybeSingle();
+    if (master.error) throw new Error(master.error.message);
+    // The retirement transaction may have committed after the initial active
+    // configuration read. The insert trigger is the final race-proof guard.
+    if (!master.data) continue;
     const isManual = String(source.meter_mode || "").toLowerCase() === "manual" || (source.begin_coin_meter === "" && source.final_coin_meter === "");
     const styles = master.data.machine_styles || [];
     const rule = await ctx.admin.from("store_machine_type_rules").select("coins_per_play").eq("store_id", ctx.store.id).eq("machine_type_id", master.data.machine_type_id).maybeSingle();
@@ -282,7 +456,9 @@ async function saveClosing(ctx: Context, payload: any) {
     }
   }
   if (workflow === "finalized") { const finalized = await ctx.user.rpc("finalize_daily_closing", { target_closing: closingId }); if (finalized.error) throw new Error(finalized.error.message); }
-  return { ok: true, closing_id: closingId, workflow_status: workflow === "finalized" ? "Finalized" : "Draft", result };
+  const saved = await ctx.admin.from("daily_closings").select("closing_code").eq("id", closingId).eq("store_id", ctx.store.id).single();
+  if (saved.error) throw new Error(saved.error.message);
+  return { ok: true, closing_id: closingId, closing_code: saved.data.closing_code || "", workflow_status: workflow === "finalized" ? "Finalized" : "Draft", result };
 }
 
 function refillHistory(events: any[]) {
@@ -299,8 +475,7 @@ async function recordRefill(ctx: Context, body: any) {
   let closingId = String(body.closing_id || body.closing_payload?.closing_id || "");
   if (!closingId) {
     if (!body.closing_payload || typeof body.closing_payload !== "object") throw new Error("A draft closing is required before recording an adjustment.");
-    const reportDate = validShiftDate(body.closing_payload.report_date);
-    const active = await activeClosingForDate(ctx, reportDate);
+    const active = await activeDraftForStore(ctx);
     if (active?.status === "draft") closingId = active.id;
     else {
       if (active?.status === "finalized") throw new Error("This shift is already closed and cannot accept an adjustment.");
@@ -351,7 +526,27 @@ async function serve(req: Request) {
   const url = new URL(req.url); const path = url.pathname.replace(/^\/claw-api/, "") || "/";
   const body = req.method === "GET" ? {} : await req.json().catch(() => ({}));
   try {
-    if (path === "/api/bootstrap") { const [settings, machines, closings, types] = await Promise.all([ctx.admin.from("store_settings").select("*").eq("store_id", ctx.store.id).single(), readMachines(ctx), ctx.admin.from("daily_closings").select("*").eq("store_id", ctx.store.id).lte("report_date", new Date().toISOString().slice(0, 10)).neq("status", "void").order("report_date", { ascending: false }).limit(12), machineTypes(ctx)]); return json({ app: { name: "JOLI POLI Claw", version: "2.1.78" }, settings: { outlet: ctx.store.name, currency: settings.data?.currency_code || "USD", variance_tolerance: settings.data?.variance_tolerance || 0, exchange_rate_usd_khr: settings.data?.exchange_rate_khr_per_usd || 0, price_per_coin_usd: settings.data?.price_per_coin_usd || 0, machine_types: types }, cloud_context: { profile: { username: ctx.profile.username, role: ctx.profile.role }, active_store: ctx.store, stores: ctx.stores }, dashboard: {}, recent_closings: (closings.data || []).map(header), machines }); }
+    if (path === "/api/bootstrap") { const [settings, machines, closings, types] = await Promise.all([ctx.admin.from("store_settings").select("*").eq("store_id", ctx.store.id).single(), readMachines(ctx, true), ctx.admin.from("daily_closings").select("*").eq("store_id", ctx.store.id).lte("report_date", new Date().toISOString().slice(0, 10)).neq("status", "void").order("report_date", { ascending: false }).limit(12), machineTypes(ctx)]); return json({ app: { name: "JOLI POLI Claw", version: "2.1.78" }, settings: { outlet: ctx.store.name, currency: settings.data?.currency_code || "USD", variance_tolerance: settings.data?.variance_tolerance || 0, exchange_rate_usd_khr: settings.data?.exchange_rate_khr_per_usd || 0, price_per_coin_usd: settings.data?.price_per_coin_usd || 0, machine_types: types }, cloud_context: { profile: { username: ctx.profile.username, role: ctx.profile.role }, active_store: ctx.store, stores: ctx.stores }, dashboard: {}, recent_closings: (closings.data || []).map(header), machines }); }
+    if (path === "/api/dashboard" && req.method === "GET") {
+      const today = new Date().toISOString().slice(0, 10);
+      const from = dashboardDate(url.searchParams.get("from") || "", `${today.slice(0, 7)}-01`);
+      const to = dashboardDate(url.searchParams.get("to") || "", today);
+      if (from > to) return fail("Date From must be on or before Date To.", 400);
+      const requestedStoreId = String(url.searchParams.get("store_id") || "all");
+      const stores = dashboardStoreScope(ctx, requestedStoreId);
+      if (!stores?.length) return fail("This store is not authorized for dashboard analytics.", 403);
+      return json(await dashboardAnalytics(ctx, from, to, requestedStoreId, stores));
+    }
+    if (path === "/api/analytics/dashboard/daily-trend" && req.method === "GET") {
+      const defaults = dashboardTrendMonthRange();
+      const from = dashboardDate(url.searchParams.get("from") || "", defaults.from);
+      const to = dashboardDate(url.searchParams.get("to") || "", defaults.to);
+      if (from > to) return fail("Date From must be on or before Date To.", 400);
+      const requestedStoreId = String(url.searchParams.get("store_id") || "all");
+      const stores = dashboardStoreScope(ctx, requestedStoreId);
+      if (!stores?.length) return fail("This store is not authorized for dashboard analytics.", 403);
+      return json(await dashboardDailyTrendAnalytics(ctx, from, to, stores));
+    }
     if (path === "/api/settings" && req.method === "GET") { const [settings, types] = await Promise.all([ctx.admin.from("store_settings").select("*").eq("store_id", ctx.store.id).single(), machineTypes(ctx)]); if (settings.error) throw new Error(settings.error.message); return json({ settings: { outlet: ctx.store.name, currency: settings.data.currency_code, variance_tolerance: settings.data.variance_tolerance, exchange_rate_usd_khr: settings.data.exchange_rate_khr_per_usd, price_per_coin_usd: settings.data.price_per_coin_usd, machine_types: types } }); }
     if (path === "/api/settings" && req.method === "POST") { if (!configurationManager(ctx)) return fail("Developer or Admin role required.", 403); const updates: any = { updated_by: ctx.userId, updated_at: new Date().toISOString() }; if (body.exchange_rate_usd_khr !== undefined) updates.exchange_rate_khr_per_usd = num(body.exchange_rate_usd_khr); if (body.price_per_coin_usd !== undefined) updates.price_per_coin_usd = num(body.price_per_coin_usd); if (body.variance_tolerance !== undefined) updates.variance_tolerance = integer(body.variance_tolerance); const { error } = await ctx.admin.from("store_settings").update(updates).eq("store_id", ctx.store.id); if (error) throw new Error(error.message); if (body.machine_types !== undefined) { for (const item of body.machine_types) { if (!String(item.name || "").trim() || integer(item.coins_per_play) <= 0) throw new Error("Each machine type needs a name and positive Coins per Play."); const type = await ctx.admin.from("machine_types").upsert({ name: String(item.name).trim(), coins_per_play: integer(item.coins_per_play), is_active: true }, { onConflict: "name" }).select("id").single(); if (type.error) throw new Error(type.error.message); const rule = await ctx.admin.from("store_machine_type_rules").upsert({ store_id: ctx.store.id, machine_type_id: type.data.id, coins_per_play: integer(item.coins_per_play), is_active: true, updated_by: ctx.userId }, { onConflict: "store_id,machine_type_id" }); if (rule.error) throw new Error(rule.error.message); } } const refreshed = await ctx.admin.from("store_settings").select("*").eq("store_id", ctx.store.id).single(); if (refreshed.error) throw new Error(refreshed.error.message); return json({ ok: true, settings: { outlet: ctx.store.name, currency: refreshed.data.currency_code, variance_tolerance: refreshed.data.variance_tolerance, exchange_rate_usd_khr: refreshed.data.exchange_rate_khr_per_usd, price_per_coin_usd: refreshed.data.price_per_coin_usd, machine_types: await machineTypes(ctx) } }); }
     if (path === "/api/users" && req.method === "GET") { if (!developer(ctx)) return fail("Developer role required.", 403); const { data, error } = await ctx.admin.from("profiles").select("id,username,role,is_active,all_stores,user_store_access!user_store_access_user_id_fkey(store_id,stores(code,name,is_active))").order("username"); if (error) throw new Error(error.message); return json((data || []).map((row: any) => ({ id: row.id, username: row.username, role: row.role, status: row.is_active ? "active" : "inactive", outlets: row.all_stores ? [{ code: "ALL", name: "All outlets" }] : (row.user_store_access || []).filter((access: any) => access.stores?.is_active).map((access: any) => ({ code: access.stores?.code, name: access.stores?.name })) }))); }
@@ -361,7 +556,23 @@ async function serve(req: Request) {
     if (path === "/api/outlets" && req.method === "POST") { if (!developer(ctx)) return fail("Developer role required.", 403); const code = normalizeOutletCode(body.code); const name = normalizeOutletName(body.name); const currentSettings = await ctx.admin.from("store_settings").select("exchange_rate_khr_per_usd,price_per_coin_usd,currency_code,variance_tolerance").eq("store_id", ctx.store.id).single(); if (currentSettings.error) throw new Error(currentSettings.error.message); const created = await ctx.admin.from("stores").insert({ code, name, is_active: true }).select("*").single(); if (created.error) throw new Error(created.error.message); const settings = await ctx.admin.from("store_settings").insert({ store_id: created.data.id, ...currentSettings.data, updated_by: ctx.userId, updated_at: new Date().toISOString() }); if (settings.error) { await ctx.admin.from("stores").delete().eq("id", created.data.id); throw new Error(settings.error.message); } await writeAudit(ctx, "store", created.data.id, "create", { code, name, settings_copied_from_store_id: ctx.store.id }); return json({ id: created.data.id, code, name, status: "active", assigned_users: 0 }, 201); }
     if (path.startsWith("/api/outlets/") && req.method === "PATCH") { if (!developer(ctx)) return fail("Developer role required.", 403); const outletId = path.split("/").pop()!; const existing = await ctx.admin.from("stores").select("*").eq("id", outletId).single(); if (existing.error || !existing.data) return fail("Outlet not found.", 404); const nextActive = body.status === undefined ? existing.data.is_active : String(body.status) !== "inactive"; if (!nextActive && existing.data.is_active) { const active = await ctx.admin.from("stores").select("id", { count: "exact", head: true }).eq("is_active", true); if (active.count !== null && active.count <= 1) return fail("The last active outlet cannot be deactivated.", 409); const drafts = await ctx.admin.from("daily_closings").select("id", { count: "exact", head: true }).eq("store_id", outletId).eq("status", "draft"); if (drafts.count && drafts.count > 0) return fail("This outlet has an active draft shift and cannot be deactivated.", 409); } const updates: any = { updated_at: new Date().toISOString() }; if (body.name !== undefined) updates.name = normalizeOutletName(body.name); if (body.status !== undefined) updates.is_active = nextActive; const updated = await ctx.admin.from("stores").update(updates).eq("id", outletId).select("*").single(); if (updated.error) throw new Error(updated.error.message); await writeAudit(ctx, "store", outletId, nextActive ? (existing.data.is_active ? "update" : "reactivate") : "deactivate", { code: existing.data.code, name: updated.data.name }); return json({ id: updated.data.id, code: updated.data.code, name: updated.data.name, status: updated.data.is_active ? "active" : "inactive" }); }
     if (path.startsWith("/api/outlets/") && req.method === "DELETE") { if (!developer(ctx)) return fail("Developer role required.", 403); const outletId = path.split("/").pop()!; const purged = await ctx.user.rpc("purge_developer_outlet", { target_store: outletId, confirm_code: String(body.confirm_code || "") }); if (purged.error) throw new Error(purged.error.message); const storagePaths = Array.isArray(purged.data?.storage_paths) ? purged.data.storage_paths.filter((path: any) => typeof path === "string") : []; let storageCleanupFailedPaths: string[] = []; if (storagePaths.length) { const cleanup = await ctx.admin.storage.from(IMAGE_BUCKET).remove(storagePaths); if (cleanup.error) { console.error("Outlet image cleanup failed", cleanup.error.message); storageCleanupFailedPaths = storagePaths; } } return json({ ...purged.data, storage_cleanup_failed_paths: storageCleanupFailedPaths }); }
-    if (path === "/api/machines" && req.method === "GET") return json(await readMachines(ctx, url.searchParams.get("active_only") === "true", configurationManager(ctx) && url.searchParams.get("include_inactive") === "true"));
+    if (path.startsWith("/api/machine-types/") && req.method === "DELETE") {
+      if (!developer(ctx)) return fail("Developer role required.", 403);
+      const typeId = path.split("/").pop()!;
+      const purged = await ctx.user.rpc("purge_developer_machine_type", { target_machine_type: typeId, confirm_name: String(body.confirm_name || "") });
+      if (purged.error) throw new Error(purged.error.message);
+      const storagePaths = Array.isArray(purged.data?.storage_paths) ? purged.data.storage_paths.filter((path: any) => typeof path === "string" && path.startsWith("stores/")) : [];
+      let storageCleanupFailedPaths: string[] = [];
+      if (storagePaths.length) {
+        const cleanup = await ctx.admin.storage.from(IMAGE_BUCKET).remove(storagePaths);
+        if (cleanup.error) {
+          console.error("Machine type image cleanup failed", cleanup.error.message);
+          storageCleanupFailedPaths = storagePaths;
+        }
+      }
+      return json({ ...purged.data, storage_cleanup_failed_paths: storageCleanupFailedPaths });
+    }
+    if (path === "/api/machines" && req.method === "GET") { const includeInactive = configurationManager(ctx) && url.searchParams.get("include_inactive") === "true"; return json(await readMachines(ctx, !includeInactive, includeInactive)); }
     if (path === "/api/machines" && req.method === "POST") {
       if (!configurationManager(ctx)) return fail("Developer or Admin role required.", 403);
       const machineId = String(body.machine_id || "");
@@ -379,12 +590,15 @@ async function serve(req: Request) {
       } else {
         // The database's (store_id, machine_type_id, machine_number) constraint
         // is the authority.  A concurrent creator retries after a collision.
+        const previousSort = await ctx.admin.from("machines").select("sort_order").eq("store_id", ctx.store.id).order("sort_order", { ascending: false }).limit(1).maybeSingle();
+        if (previousSort.error) throw new Error(previousSort.error.message);
+        const sortOrder = integer(previousSort.data?.sort_order) + 1 || 1;
         for (let attempt = 0; attempt < 5; attempt++) {
           const previous = await ctx.admin.from("machines").select("machine_number").eq("store_id", ctx.store.id).eq("machine_type_id", machineType.data.id).order("machine_number", { ascending: false }).limit(1).maybeSingle();
           if (previous.error) throw new Error(previous.error.message);
           const machineNumber = integer(previous.data?.machine_number) + 1 || 1;
           const machineCode = `${machineCodePart(ctx.store.code)}-${machineCodePart(machineType.data.name)}-${String(machineNumber).padStart(3, "0")}`;
-          const created = await ctx.admin.from("machines").insert({ store_id: ctx.store.id, machine_type_id: machineType.data.id, machine_code: machineCode, machine_number: machineNumber, display_name: `${machineType.data.name} ${machineNumber}`, prize_category: String(body.prize_category || ""), is_active: body.active !== false, sort_order: integer(body.sort_order) || machineNumber, notes: String(body.notes || "") }).select("*").single();
+          const created = await ctx.admin.from("machines").insert({ store_id: ctx.store.id, machine_type_id: machineType.data.id, machine_code: machineCode, machine_number: machineNumber, display_name: `${machineType.data.name} ${machineNumber}`, prize_category: String(body.prize_category || ""), is_active: body.active !== false, sort_order: sortOrder, notes: String(body.notes || "") }).select("*").single();
           if (!created.error) { machine = created.data; break; }
           if (!isUniqueViolation(created.error) || attempt === 4) throw new Error(created.error.message);
         }
@@ -394,7 +608,7 @@ async function serve(req: Request) {
       if (body.image_data) { const first = await ctx.admin.from("machine_styles").select("id").eq("machine_id", machine.id).order("sort_order").limit(1).single(); if (!first.error) { const match = String(body.image_data).match(/^data:(image\/(?:jpeg|png|webp));base64,/); if (!match) throw new Error("Only JPEG, PNG, and WebP images are accepted."); await saveImage(ctx, { machine_style_id: first.data.id, content_type: match[1], image_base64: body.image_data }); } }
       return json({ ok: true, machine: (await readMachines(ctx, false)).find((item: any) => item.Machine_ID === machine.id) });
     }
-    if (path.startsWith("/api/machines/") && req.method === "DELETE") { if (!configurationManager(ctx)) return fail("Developer or Admin role required.", 403); const id = path.split("/").pop()!; const result = await ctx.admin.from("machines").update({ is_active: false, updated_at: new Date().toISOString() }).eq("id", id).eq("store_id", ctx.store.id); if (result.error) throw new Error(result.error.message); return json({ ok: true }); }
+    if (path.startsWith("/api/machines/") && req.method === "DELETE") { if (!configurationManager(ctx)) return fail("Developer or Admin role required.", 403); const id = path.split("/").pop()!; const retired = await ctx.user.rpc("retire_machine_and_remove_from_draft", { target_machine: id }); if (retired.error) throw new Error(retired.error.message); return json(retired.data); }
     if (path.startsWith("/api/machine-styles/") && req.method === "DELETE") { if (!configurationManager(ctx)) return fail("Developer or Admin role required.", 403); const styleId = path.split("/").pop()!; const existing = await ctx.admin.from("machine_styles").select("id,barcode,product_name,is_active,machines!inner(store_id)").eq("id", styleId).single(); if (existing.error || existing.data?.machines?.store_id !== ctx.store.id) return fail("Product is not in the active outlet.", 404); const retired = await ctx.admin.from("machine_styles").update({ is_active: false, updated_at: new Date().toISOString() }).eq("id", styleId).select("id").single(); if (retired.error) throw new Error(retired.error.message); await writeAudit(ctx, "machine_style", styleId, "retire", { barcode: existing.data.barcode, product_name: existing.data.product_name, was_active: existing.data.is_active }); return json({ ok: true, retired_style_id: styleId }); }
     if (path === "/api/images/replace" && req.method === "POST") return json(await saveImage(ctx, body));
     if (path === "/api/test/image-persistence-failure" && req.method === "POST") {
@@ -403,22 +617,20 @@ async function serve(req: Request) {
     }
     if (path === "/api/images/remove" && req.method === "POST") { if (!configurationManager(ctx)) return fail("Developer or Admin role required.", 403); const style = await ctx.admin.from("machine_styles").select("*, machines!inner(store_id)").eq("id", String(body.machine_style_id || "")).single(); if (style.error || style.data.machines.store_id !== ctx.store.id) return fail("Image style is not in the active store.", 404); const oldPath = style.data.image_path; const update = await ctx.admin.from("machine_styles").update({ image_path: null, image_content_type: null, image_updated_by: ctx.userId, image_updated_at: new Date().toISOString() }).eq("id", style.data.id); if (update.error) throw new Error(update.error.message); if (oldPath) { const remove = await ctx.admin.storage.from(IMAGE_BUCKET).remove([oldPath]); if (remove.error) throw new Error(`Image reference cleared; cleanup failed: ${remove.error.message}`); } return json({ ok: true }); }
     if (path === "/api/active-closing" && req.method === "GET") {
-      const reportDate = validShiftDate(url.searchParams.get("report_date") || new Date().toISOString().slice(0, 10));
-      const active = await activeClosingForDate(ctx, reportDate);
-      return json({ closing_id: active?.status === "draft" ? active.id : null });
+      const active = await activeDraftForStore(ctx);
+      return json({ closing_id: active?.status === "draft" ? active.id : null, report_date: active?.status === "draft" ? active.report_date : null, has_active_shift: active?.status === "draft" || false });
     }
     if (path === "/api/new-closing") {
+      const active = await activeDraftForStore(ctx);
+      if (active?.status === "draft") return json({ report_date: active.report_date, outlet: ctx.store.name, closing_id: active.id, existing_closing_id: active.id, reused: true, has_active_shift: true });
       const reportDate = validShiftDate(url.searchParams.get("report_date") || new Date().toISOString().slice(0, 10));
-      const active = await activeClosingForDate(ctx, reportDate);
-      if (active?.status === "finalized") return fail("This shift is already closed and cannot be started again.", 409);
-      if (active?.status === "draft") return json({ report_date: reportDate, outlet: ctx.store.name, closing_id: active.id, existing_closing_id: active.id, reused: true });
       const template = await openingTemplate(ctx, reportDate);
       try {
         const created = await saveClosing(ctx, { ...template, sales: {}, closed_by: "", verified_by: "", notes: "", workflow_status: "Draft" });
         return json({ report_date: reportDate, outlet: ctx.store.name, closing_id: created.closing_id, reused: false });
       } catch (error) {
-        const concurrent = await activeClosingForDate(ctx, reportDate);
-        if (concurrent?.status === "draft") return json({ report_date: reportDate, outlet: ctx.store.name, closing_id: concurrent.id, existing_closing_id: concurrent.id, reused: true });
+        const concurrent = await activeDraftForStore(ctx);
+        if (concurrent?.status === "draft") return json({ report_date: concurrent.report_date, outlet: ctx.store.name, closing_id: concurrent.id, existing_closing_id: concurrent.id, reused: true, has_active_shift: true });
         throw error;
       }
     }
@@ -438,12 +650,33 @@ async function serve(req: Request) {
     }
     if (path === "/api/closings" && req.method === "GET") { const { data, error } = await ctx.admin.from("daily_closings").select("*").eq("store_id", ctx.store.id).order("report_date", { ascending: false }).limit(Math.min(integer(url.searchParams.get("limit")) || 500, 5000)); if (error) throw new Error(error.message); return json((data || []).map(header)); }
     if (path === "/api/reports/summary" && req.method === "GET") { const rows = await monthlyClosings(ctx, url.searchParams.get("month") || ""); return json({ closings: rows.length, total_sales: rows.reduce((sum: number, row: any) => sum + num(row.total_sales_usd), 0), coins: rows.reduce((sum: number, row: any) => sum + integer(row.machine_coins_used), 0), prizes: rows.reduce((sum: number, row: any) => sum + integer(row.total_products), 0), outlet: ctx.store.name }); }
-    if (path === "/api/reports/monthly" && req.method === "POST") { const rows = await monthlyClosings(ctx, String(body.month || "")); const lines: unknown[][] = [["JOLI POLI Claw Monthly Report", ctx.store.name, body.month], [], ["Report Date", "Closing ID", "Workflow", "Total Sales", "Coins Played", "Prizes Won", "Coin Variance", "Closed By", "Verified By"]]; for (const row of rows) { const value = header(row); lines.push([value.Report_Date, value.Closing_ID, value.Workflow_Status, value.Total_Sales, value.Machine_Coins_Used, value.Total_Prizes_Won, value.Coin_Variance, value.Closed_By, value.Verified_By]); } lines.push([], ["Totals", rows.length, "", rows.reduce((sum: number, row: any) => sum + num(row.total_sales_usd), 0), rows.reduce((sum: number, row: any) => sum + integer(row.machine_coins_used), 0), rows.reduce((sum: number, row: any) => sum + integer(row.total_products), 0)]); return json(download(`JOLI_POLI_Claw_Monthly_${ctx.store.code}_${body.month}.csv`, lines)); }
-    if (path.startsWith("/api/reports/daily/") && req.method === "POST") { const closingId = path.split("/").pop()!; const detail = await closingDetail(ctx, closingId); const value = header(detail.closing); const lines: unknown[][] = [["JOLI POLI Claw Daily Report", ctx.store.name, value.Report_Date], [], ["Closing ID", value.Closing_ID], ["Final State", value.Workflow_Status], ["Total Sales", value.Total_Sales], ["Coins Dispensed", value.Coins_Dispensed], ["Machine Coins Used", value.Machine_Coins_Used], ["Coin Variance", value.Coin_Variance], ["Total Prizes Won", value.Total_Prizes_Won], [], ["Machine", "Product / Barcode", "Begin Qty", "Refill Qty", "Final Qty", "Qty Used", "Coins Used", "Meter Mode", "Status"]]; for (const machine of detail.machines) for (const product of machine.closing_product_entries || []) lines.push([machine.machine_name_snapshot, product.product_name_snapshot || product.barcode_snapshot, product.begin_qty, product.refill_qty, product.final_qty, product.qty_used, machine.coins_used, machine.meter_mode, machine.machine_status]); return json(download(`JOLI_POLI_Claw_Daily_${ctx.store.code}_${value.Report_Date}_${closingId}.csv`, lines)); }
-    if (path.startsWith("/api/closings/") && req.method === "GET") { const id = path.split("/").pop()!; const { data: closing, error } = await ctx.admin.from("daily_closings").select("*").eq("id", id).eq("store_id", ctx.store.id).single(); if (error) return fail("Closing not found.", 404); const { data: machines } = await ctx.admin.from("closing_machine_entries").select("*, closing_product_entries(*, refill_events(*))").eq("closing_id", id).order("sort_order_snapshot"); const mapped = (machines || []).map((row: any) => ({ Machine_ID: row.machine_id, Machine_Name: row.machine_name_snapshot, Machine_Type: row.machine_type_name_snapshot, Capacity: row.capacity_snapshot, Begin_Prize: 0, Refill_Prize: 0, Final_Prize: 0, Begin_Coin_Meter: row.begin_meter, Final_Coin_Meter: row.final_meter, Coins_Used: row.coins_used, Meter_Mode: row.meter_mode, Manual_Coins_Used: row.manual_coins_used, Win_Rate: row.win_rate, Machine_Status: row.machine_status, Notes: row.notes, Products: [...(row.closing_product_entries || [])].sort((a: any, b: any) => integer(a.sort_order_snapshot) - integer(b.sort_order_snapshot) || String(a.created_at || "").localeCompare(String(b.created_at || "")) || String(a.id).localeCompare(String(b.id))).map((product: any) => ({ ...product, refill_events: refillHistory(product.refill_events || []) })) })); return json({ header: header(closing), machines: mapped, products: mapped.flatMap((row: any) => row.Products.map((product: any) => ({ ...product, Machine_ID: row.Machine_ID, Product_ID: product.machine_style_id, Barcode: product.barcode_snapshot, Begin_Qty: product.begin_qty, Final_Qty: product.final_qty, Qty_Used: product.qty_used, Refill_Qty: product.refill_qty, Refill_History_JSON: product.refill_events || [] }))) }); }
+    if (path === "/api/reports/monthly" && req.method === "POST") { const rows = await monthlyClosings(ctx, String(body.month || "")); const lines: unknown[][] = [["JOLI POLI Claw Monthly Report", ctx.store.name, body.month], [], ["Report Date", "Invoice No", "Workflow", "Total Sales", "Coins Played", "Prizes Won", "Coin Variance", "Closed By", "Verified By"]]; for (const row of rows) { const value = header(row); lines.push([value.Report_Date, value.Closing_Code, value.Workflow_Status, value.Total_Sales, value.Machine_Coins_Used, value.Total_Prizes_Won, value.Coin_Variance, value.Closed_By, value.Verified_By]); } lines.push([], ["Totals", rows.length, "", rows.reduce((sum: number, row: any) => sum + num(row.total_sales_usd), 0), rows.reduce((sum: number, row: any) => sum + integer(row.machine_coins_used), 0), rows.reduce((sum: number, row: any) => sum + integer(row.total_products), 0)]); return json(download(`JOLI_POLI_Claw_Monthly_${ctx.store.code}_${body.month}.csv`, lines)); }
+    if (path.startsWith("/api/reports/daily/") && req.method === "POST") { const closingId = path.split("/").pop()!; const detail = await closingDetail(ctx, closingId); const value = header(detail.closing); const lines: unknown[][] = [["JOLI POLI Claw Daily Report", ctx.store.name, value.Report_Date], [], ["Invoice No", value.Closing_Code], ["Final State", value.Workflow_Status], ["Total Sales", value.Total_Sales], ["Coins Dispensed", value.Coins_Dispensed], ["Machine Coins Used", value.Machine_Coins_Used], ["Coin Variance", value.Coin_Variance], ["Total Prizes Won", value.Total_Prizes_Won], [], ["Machine", "Product / Barcode", "Begin Qty", "Refill Qty", "Final Qty", "Qty Used", "Coins Used", "Meter Mode", "Status"]]; for (const machine of detail.machines) for (const product of machine.closing_product_entries || []) lines.push([machine.machine_name_snapshot, product.product_name_snapshot || product.barcode_snapshot, product.begin_qty, product.refill_qty, product.final_qty, product.qty_used, machine.coins_used, machine.meter_mode, machine.machine_status]); return json(download(`JOLI_POLI_Claw_Daily_${ctx.store.code}_${value.Report_Date}_${value.Closing_Code || closingId}.csv`, lines)); }
+    if (path.startsWith("/api/closings/") && req.method === "GET") {
+      const id = path.split("/").pop()!;
+      const { data: closing, error } = await ctx.admin.from("daily_closings").select("*").eq("id", id).eq("store_id", ctx.store.id).single();
+      if (error) return fail("Closing not found.", 404);
+      const { data: machines, error: machineError } = await ctx.admin.from("closing_machine_entries").select("*, closing_product_entries(*, refill_events(*))").eq("closing_id", id).order("sort_order_snapshot");
+      if (machineError) throw new Error(machineError.message);
+      const hydratedMachines = await hydrateClosingProductImages(ctx, closing, machines || []);
+      const mapped = hydratedMachines.map((row: any) => ({
+        Machine_ID: row.machine_id, Machine_Name: row.machine_name_snapshot, Machine_Type: row.machine_type_name_snapshot, Sort_Order: row.sort_order_snapshot,
+        Capacity: row.capacity_snapshot, Begin_Prize: 0, Refill_Prize: 0, Final_Prize: 0, Begin_Coin_Meter: row.begin_meter, Final_Coin_Meter: row.final_meter,
+        Coins_Used: row.coins_used, Meter_Mode: row.meter_mode, Manual_Coins_Used: row.manual_coins_used, Win_Rate: row.win_rate, Machine_Status: row.machine_status, Notes: row.notes,
+        Products: [...(row.closing_product_entries || [])].sort((a: any, b: any) => integer(a.sort_order_snapshot) - integer(b.sort_order_snapshot) || String(a.created_at || "").localeCompare(String(b.created_at || "")) || String(a.id).localeCompare(String(b.id))).map((product: any) => ({ ...product, refill_events: refillHistory(product.refill_events || []) })),
+      }));
+      return json({
+        header: header(closing),
+        machines: mapped,
+        products: mapped.flatMap((row: any) => row.Products.map((product: any) => ({
+          ...product, Machine_ID: row.Machine_ID, Product_ID: product.machine_style_id, Barcode: product.barcode_snapshot,
+          Image_File: product.image_file || "", Image_URL: product.image_url || "", image_object_key_snapshot: product.image_object_key_snapshot || "",
+          Begin_Qty: product.begin_qty, Final_Qty: product.final_qty, Qty_Used: product.qty_used, Refill_Qty: product.refill_qty, Refill_History_JSON: product.refill_events || [],
+        }))),
+      });
+    }
     if (path.startsWith("/api/closings/") && req.method === "DELETE") { if (!configurationManager(ctx)) return fail("Developer or Admin role required.", 403); const id = path.split("/").pop()!; const existing = await ctx.admin.from("daily_closings").select("id,status").eq("id", id).eq("store_id", ctx.store.id).single(); if (existing.error || existing.data.status === "void") return fail("Closing not found.", 404); const result = await ctx.admin.from("daily_closings").update({ status: "void", voided_by: ctx.userId, voided_at: new Date().toISOString(), void_reason: String(body.reason || "") }).eq("id", id).eq("store_id", ctx.store.id).in("status", ["draft", "finalized"]); if (result.error) throw new Error(result.error.message); const audit = await ctx.admin.from("audit_log").insert({ actor_user_id: ctx.userId, store_id: ctx.store.id, entity_type: "daily_closing", entity_id: id, action: "void", metadata: { reason: String(body.reason || "") } }); if (audit.error) throw new Error(audit.error.message); return json({ ok: true, voided_closing_id: id }); }
     if (path === "/api/history" && req.method === "GET") { const { data, error } = await ctx.admin.from("daily_closings").select("*").eq("store_id", ctx.store.id).eq("status", "finalized").order("finalized_at", { ascending: false }).limit(Math.min(integer(url.searchParams.get("limit")) || 500, 5000)); if (error) throw new Error(error.message); const records = (data || []).map((row: any) => ({ ...header(row), Refill_Qty: 0 })); return json({ records, machines: [], staff: [...new Set(records.map((row: any) => row.Closed_By).filter(Boolean))] }); }
-    if (path === "/api/dashboard") return json({ summary: {}, recent_closings: [] });
     if (path.startsWith("/api/machine-images/")) return fail("Private image delivery is available through signed URLs only.", 404);
     return fail("Cloud operation is not implemented for this route.", 404);
   } catch (error) { return fail(error instanceof Error ? error.message : "Cloud request failed.", 400); }

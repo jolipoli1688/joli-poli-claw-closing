@@ -58,14 +58,20 @@ try {
     "./claw-api.js?v=2.1.78-cloud-runtime-2",
     "./cloud-profile.js?v=2.1.78-cloud-runtime-2",
     "./cloud-user-management.js?v=2.1.78-cloud-runtime-2",
-    "./assets/app.js?v=2.1.78-profile-refill-fix-1",
-  ], "the actual served Cloud response must load runtime, adapter, facade, helpers, then app");
+    "./assets/zxing-browser.min.js?v=0.2.1",
+    "./assets/app.js?v=2.1.78-start-shift-premium",
+  ], "the actual served Cloud response must load runtime, adapter, facade, scanner fallback, then app");
   for (const script of scripts.slice(2)) assert.ok(!/\b(?:defer|async|type\s*=\s*["']module["'])\b/i.test(script.attributes), "Cloud execution order must not be relaxed by async, defer, or module attributes");
 
   const externalScripts = await Promise.all(scripts.filter(script => script.src).map(async script => ({
     ...script,
     source: await (await fetch(`http://127.0.0.1:${port}/${script.src.replace(/^\.\//, "")}`)).text(),
   })));
+  const appSource = externalScripts.find(script => script.src.startsWith("./assets/app.js"))?.source || "";
+  assert.match(appSource, /Primary Outcomes[\s\S]*?Store Detail/, "served Dashboard must retain its two supported tabs");
+  assert.match(appSource, /renderPrimaryOutcomesDailySalesTrend[\s\S]*?Daily Sales Trend/, "served Primary Outcomes must contain the new Daily Sales Trend card");
+  assert.doesNotMatch(appSource, /dailySalesOverview|daily-sales-overview/, "served Primary Outcomes must not contain the previously reused chart renderer");
+  assert.doesNotMatch(appSource, /Performance Trend|dashboardTrend|dashboardDailyTrend|dashboardSalesChart|dashboardChartYAxis|dashboardRechartsMonotoneXPath|dashboardTrendTickIndexes|dashboard-chart-/, "served Dashboard must not restore the removed Performance Trend tab or old presentation");
 
   const execute = async ({ authenticated }) => {
     const documentListeners = new Map();

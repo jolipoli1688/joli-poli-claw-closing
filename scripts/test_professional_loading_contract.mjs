@@ -11,24 +11,22 @@ const [index, app, css, users] = await Promise.all([
   read("../web/cloud-user-management.js"),
 ]);
 
-assert.doesNotMatch(index, /loadingOverlay|loading-card|Opening Claw Closing|Loading your workspace/, "initial loading must not use the old full-page card");
 assert.match(index, /app-shell-loading/, "the normal application shell must render immediately");
-assert.match(index, /loading-page-skeleton/, "initial Daily Closing content must reserve its final layout");
-assert.match(index, /skeleton-machine-table[\s\S]*Machine[\s\S]*Product \/ Barcode[\s\S]*Begin Qty[\s\S]*Coins Used[\s\S]*Status/s, "machine skeleton must retain the real column structure");
-assert.equal((index.match(/skeleton-table-row/g) || []).length, 5, "initial machine table must reserve five loading rows");
-assert.match(css, /--loading-skeleton-base/, "skeleton colors must use application design tokens");
-assert.match(css, /\[data-theme="dark"\], \.theme-dark/, "dark-theme skeleton tokens must be supported");
-assert.match(css, /@media \(prefers-reduced-motion: reduce\)/, "loading motion must respect reduced-motion preferences");
-assert.match(css, /claw-skeleton-shimmer/, "skeletons must use a quiet shimmer");
-assert.doesNotMatch(css, /bounce|flash/i, "loading CSS must not introduce bouncing or flashing effects");
-assert.match(app, /renderSettingsLoadingV2182/, "Settings must render a matching skeleton while data loads");
-assert.match(app, /renderHistoryLoadingV2182/, "History must render a matching skeleton while data loads");
-assert.match(app, /loadingKpiCardsV2182/, "KPI areas must retain card dimensions while loading");
-assert.match(app, /loadingTableRowsV2182\(9\)/, "History table skeleton must preserve its column count");
-assert.match(app, /showInitialLoadingError/, "bootstrap failures must replace skeletons with a retry state");
-assert.match(app, /setInlineButtonLoading/, "small actions must use inline button loading");
-assert.match(app, /upload-progress/, "image selection must expose progress and status treatment");
-assert.match(users, /clawDeveloperUsersLoading/, "User Management must show a skeleton while its data loads");
-assert.match(users, /loading-inline-spinner/, "User and outlet actions must show inline spinners");
+assert.match(index, /class="page-loading" role="status"/, "initial Daily Closing must use a centered page loading boundary");
+assert.equal((index.match(/loading-dots/g) || []).length, 1, "initial Daily Closing must render one dot loader");
+assert.doesNotMatch(index, /skeleton|shimmer|loading-page-skeleton/i, "initial Daily Closing must not render skeleton placeholders");
+assert.match(css, /\.page-loading \{ display:grid; min-height:calc\(100vh - 88px\); place-items:center; \}/, "page loading must stay centered in the available content area");
+assert.match(css, /\.loading-dots > span \{ width:8px; height:8px/, "Dashboard dots must be 8px");
+assert.match(css, /gap:6px/, "Dashboard dots must retain their 6px spacing");
+assert.match(css, /animation-delay:-\.3s/, "first dot must retain the Dashboard stagger");
+assert.match(css, /animation-delay:-\.15s/, "second dot must retain the Dashboard stagger");
+assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.loading-dots > span/, "dot motion must respect reduced motion");
+assert.doesNotMatch(css, /skeleton|shimmer/i, "skeleton CSS must be removed");
+assert.match(app, /loadingDotsV2183/, "Settings, History, and Reports must share the dot loader");
+assert.doesNotMatch(app, /loadingKpiCardsV2182|loadingTableRowsV2182|renderSettingsLoadingV2182|renderHistoryLoadingV2182|skeleton/i, "page scripts must not create skeleton loading UI");
+assert.match(app, /setInlineButtonLoading/, "small actions must retain inline button loading");
+assert.match(users, /page-loading page-loading-section/, "User Management must use the shared dot loader");
+assert.doesNotMatch(users, /skeleton/i, "User Management must not render skeleton rows");
+assert.match(users, /loading-inline-spinner/, "User and outlet actions must retain inline spinners");
 
-console.log("PASS - professional shell, skeleton, inline-action, upload-progress, and error loading contracts.");
+console.log("PASS - persistent shell and Dashboard three-dot page loading contract.");
