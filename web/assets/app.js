@@ -6802,7 +6802,11 @@ showRefillProductModalV2144 = async function(machineIndex, productIndex) {
             '<button id="refillCameraScanButtonV2212" class="refill-camera-trigger-v2212" type="button" aria-label="Scan barcode with camera" title="Scan barcode with camera" aria-pressed="false"' + (targetBarcode ? '' : ' disabled') + '>' + icon('barcode', 18) + '</button></div></div>' +
         '<section id="refillCameraScannerV2212" class="refill-camera-scanner-v2212" hidden aria-labelledby="refillCameraScanTitleV2212">' +
           '<div class="refill-camera-scanner-head-v2212"><div><strong id="refillCameraScanTitleV2212">Scan barcode</strong><span>Expected <b>' + escapeHtml(targetBarcode || '—') + '</b></span></div><span id="refillCameraStatusV2212" class="refill-camera-status-v2212" role="status" aria-live="polite">Opening camera…</span></div>' +
-          '<video id="refillCameraVideoV2212" class="refill-camera-video-v2212" autoplay muted playsinline></video>' +
+          '<div class="refill-camera-preview-v2215">' +
+            '<video id="refillCameraVideoV2212" class="refill-camera-video-v2212" autoplay muted playsinline></video>' +
+            '<div class="refill-camera-scan-zone-v2215" aria-hidden="true"><span class="refill-camera-scan-line-v2215"></span></div>' +
+          '</div>' +
+          '<div id="refillCameraGuidanceV2215" class="refill-camera-guidance-v2215" role="status" aria-live="polite"><strong>Starting camera…</strong><span>Preparing secure camera preview</span></div>' +
           '<button id="refillCameraCancelV2212" class="btn btn-secondary refill-camera-cancel-v2212" type="button">Cancel</button>' +
         '</section>' +
         '<div id="refillScanFeedbackV2211" class="refill-scan-feedback-v2211" role="status" aria-live="polite">' +
@@ -6891,6 +6895,7 @@ showRefillProductModalV2144 = async function(machineIndex, productIndex) {
     const cameraPane = document.getElementById('refillCameraScannerV2212');
     const cameraVideo = document.getElementById('refillCameraVideoV2212');
     const cameraStatus = document.getElementById('refillCameraStatusV2212');
+    const cameraGuidance = document.getElementById('refillCameraGuidanceV2215');
     const cameraCancel = document.getElementById('refillCameraCancelV2212');
     const saveButton = modal?.querySelector('.modal-save');
     const methodButtons = [...document.querySelectorAll('[data-refill-mode]')];
@@ -6903,6 +6908,9 @@ showRefillProductModalV2144 = async function(machineIndex, productIndex) {
     let zxingControls = null;
     let lastCameraSeenAt = 0;
     let latchedCameraBarcode = '';
+    let cameraEachScanPendingRearm = false;
+    let cameraUiTimer = 0;
+    let cameraStopTimer = 0;
 
     const setFeedback = (tone, message) => {
       if (!feedback) return;
@@ -6922,6 +6930,10 @@ showRefillProductModalV2144 = async function(machineIndex, productIndex) {
       cameraRunning = false;
       if (cameraFrame) window.cancelAnimationFrame(cameraFrame);
       cameraFrame = 0;
+      if (cameraUiTimer) window.clearTimeout(cameraUiTimer);
+      if (cameraStopTimer) window.clearTimeout(cameraStopTimer);
+      cameraUiTimer = 0;
+      cameraStopTimer = 0;
       try { zxingControls?.stop(); } catch (_error) {}
       zxingControls = null;
       cameraScannerKind = '';
@@ -6930,6 +6942,7 @@ showRefillProductModalV2144 = async function(machineIndex, productIndex) {
       cameraDetector = null;
       latchedCameraBarcode = '';
       lastCameraSeenAt = 0;
+      cameraEachScanPendingRearm = false;
       if (cameraVideo) {
         const videoStream = cameraVideo.srcObject;
         if (videoStream && typeof videoStream.getTracks === 'function') videoStream.getTracks().forEach(track => track.stop());
@@ -6993,8 +7006,33 @@ showRefillProductModalV2144 = async function(machineIndex, productIndex) {
     const setCameraStatus = message => {
       if (cameraStatus) cameraStatus.textContent = message;
     };
+    const setCameraUiState = (nextState, status, helper) => {
+      if (cameraPane) cameraPane.dataset.cameraState = nextState;
+      setCameraStatus(status);
+      if (!cameraGuidance) return;
+      const title = cameraGuidance.querySelector('strong');
+      const detail = cameraGuidance.querySelector('span');
+      if (title) title.textContent = status;
+      if (detail) detail.textContent = helper;
+    };
+    const vibrateCameraFeedback = pattern => {
+      try { navigator.vibrate?.(pattern); } catch (_error) {}
+    };
+    const scheduleCameraUiState = (delay, nextState, status, helper) => {
+      if (cameraUiTimer) window.clearTimeout(cameraUiTimer);
+      cameraUiTimer = window.setTimeout(() => {
+        cameraUiTimer = 0;
+        if (cameraRunning) setCameraUiState(nextState, status, helper);
+      }, delay);
+    };
     const rearmCameraBarcode = () => {
-      if (Date.now() - lastCameraSeenAt >= 450) latchedCameraBarcode = '';
+      if (Date.now() - lastCameraSeenAt < 450 || !latchedCameraBarcode) return;
+      latchedCameraBarcode = '';
+      if (mode === 'each' && cameraRunning && cameraEachScanPendingRearm) {
+        cameraEachScanPendingRearm = false;
+        setCameraUiState('ready-next', 'Ready for next item', 'Place next barcode inside the frame');
+        scheduleCameraUiState(650, 'scanning', 'Scanning…', 'Place barcode inside the frame');
+      }
     };
     const processCameraDetection = rawValue => {
       const scanned = refillBarcodeV2211(rawValue);
@@ -7006,11 +7044,26 @@ showRefillProductModalV2144 = async function(machineIndex, productIndex) {
       if (scanned === latchedCameraBarcode) return false;
       latchedCameraBarcode = scanned;
       const accepted = processScan(scanned);
-      if (accepted && mode === 'once') {
-        stopCamera();
+      if (!accepted) {
+        setCameraUiState('wrong', 'Wrong barcode', 'Expected: ' + targetBarcode + ' · Scanned: ' + scanned);
+        vibrateCameraFeedback([30, 40, 30]);
+        scheduleCameraUiState(900, 'scanning', 'Scanning…', 'Place barcode inside the frame');
+        return false;
+      }
+      vibrateCameraFeedback(65);
+      if (mode === 'once') {
+        setCameraUiState('success', '✓ Product verified', 'Opening the quantity entry');
+        if (cameraStopTimer) window.clearTimeout(cameraStopTimer);
+        cameraStopTimer = window.setTimeout(() => {
+          cameraStopTimer = 0;
+          stopCamera();
+        }, 700);
         return true;
       }
-      return accepted;
+      setCameraUiState('success', '✓ +1', 'Total scanned: ' + scannedQty);
+      cameraEachScanPendingRearm = true;
+      scheduleCameraUiState(850, 'locked', 'Item counted', 'Move barcode away to scan the next item');
+      return true;
     };
     const scheduleCameraDetection = () => {
       if (!cameraRunning) return;
@@ -7050,7 +7103,7 @@ showRefillProductModalV2144 = async function(machineIndex, productIndex) {
         return;
       }
       cameraRunning = true;
-      setCameraStatus('Point the camera at the barcode.');
+      setCameraUiState('scanning', 'Scanning…', 'Place barcode inside the frame');
       scheduleCameraDetection();
     };
     const openZxingCamera = async session => {
@@ -7074,7 +7127,7 @@ showRefillProductModalV2144 = async function(machineIndex, productIndex) {
       }
       zxingControls = controls;
       cameraRunning = true;
-      setCameraStatus('Point the camera at the barcode.');
+      setCameraUiState('scanning', 'Scanning…', 'Place barcode inside the frame');
     };
     const openCamera = async () => {
       if (!targetBarcode) {
@@ -7089,9 +7142,9 @@ showRefillProductModalV2144 = async function(machineIndex, productIndex) {
       stopCamera();
       activeRefillCameraStopV2212 = stopCamera;
       const session = ++cameraSession;
-      if (cameraPane) cameraPane.hidden = false;
+      if (cameraPane) { cameraPane.hidden = false; cameraPane.dataset.cameraState = 'starting'; }
       cameraButton?.setAttribute('aria-pressed', 'true');
-      setCameraStatus('Opening camera…');
+      setCameraUiState('starting', 'Starting camera…', 'Preparing secure camera preview');
       try {
         if (typeof Detector === 'function') await openNativeCamera(Detector, session);
         else await openZxingCamera(session);

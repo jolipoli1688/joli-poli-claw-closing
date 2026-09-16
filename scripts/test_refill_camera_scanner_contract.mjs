@@ -15,8 +15,8 @@ assert.match(workflow, /facingMode:\s*\{ ideal: 'environment' \}/, "camera scann
 assert.match(workflow, /const accepted = processScan\(scanned\)/, "camera values must use the existing barcode verification function");
 assert.match(workflow, /verified = true[\s\S]*?onceQuantity\.hidden = false[\s\S]*?qtyInput\.disabled = false[\s\S]*?qtyInput\.focus\(\)/, "manual and camera verification must reveal and focus the compact quantity panel through the shared flow");
 assert.match(workflow, /let latchedCameraBarcode = ''[\s\S]*?scanned === latchedCameraBarcode/, "continuous video frames must be latched while visible");
-assert.match(workflow, /lastCameraSeenAt >= 450\) latchedCameraBarcode = ''/, "continuous video frames must rearm after the barcode leaves view");
-assert.match(workflow, /accepted && mode === 'once'[\s\S]*?stopCamera\(\)/, "the multiple-count mode must close the camera after one accepted verification");
+assert.match(workflow, /lastCameraSeenAt < 450 \|\| !latchedCameraBarcode[\s\S]*?latchedCameraBarcode = ''/, "continuous video frames must rearm after the barcode leaves view");
+assert.match(workflow, /mode === 'once'[\s\S]*?cameraStopTimer = window\.setTimeout[\s\S]*?stopCamera\(\)/, "the multiple-count mode must close the camera after one accepted verification");
 assert.match(workflow, /track => track\.stop\(\)/, "camera media tracks must be released");
 assert.match(workflow, /zxingControls\?\.stop\(\)/, "fallback scanner controls must be released");
 assert.match(workflow, /stopCamera\(\);\s*activeRefillCameraStopV2212 = stopCamera;/, "a reopened camera must remain registered for modal and navigation cleanup");
