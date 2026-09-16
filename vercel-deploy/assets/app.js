@@ -6906,11 +6906,10 @@ showRefillProductModalV2144 = async function(machineIndex, productIndex) {
     let cameraDetector = null;
     let cameraScannerKind = '';
     let zxingControls = null;
-    let lastCameraSeenAt = 0;
-    let latchedCameraBarcode = '';
-    let cameraEachScanPendingRearm = false;
+    let cameraSuccessfulScanHandled = false;
     let cameraUiTimer = 0;
     let cameraStopTimer = 0;
+    let cameraSummaryTimer = 0;
 
     const setFeedback = (tone, message) => {
       if (!feedback) return;
@@ -6940,16 +6939,14 @@ showRefillProductModalV2144 = async function(machineIndex, productIndex) {
       cameraStream?.getTracks().forEach(track => track.stop());
       cameraStream = null;
       cameraDetector = null;
-      latchedCameraBarcode = '';
-      lastCameraSeenAt = 0;
-      cameraEachScanPendingRearm = false;
+      cameraSuccessfulScanHandled = false;
+      if (cameraPane) cameraPane.hidden = true;
       if (cameraVideo) {
         const videoStream = cameraVideo.srcObject;
         if (videoStream && typeof videoStream.getTracks === 'function') videoStream.getTracks().forEach(track => track.stop());
         cameraVideo.pause();
         cameraVideo.srcObject = null;
       }
-      if (cameraPane) cameraPane.hidden = true;
       cameraButton?.setAttribute('aria-pressed', 'false');
       if (activeRefillCameraStopV2212 === stopCamera) activeRefillCameraStopV2212 = null;
       if (focus) focusScan();
@@ -6975,7 +6972,7 @@ showRefillProductModalV2144 = async function(machineIndex, productIndex) {
       updateSave();
       focusScan();
     };
-    const processScan = rawValue => {
+    const processScan = (rawValue, { deferFocus = false, deferQuantityReveal = false } = {}) => {
       const scanned = refillBarcodeV2211(rawValue === undefined ? scanInput?.value : rawValue);
       if (!scanned) return false;
       if (scanned !== targetBarcode) {
@@ -6990,14 +6987,14 @@ showRefillProductModalV2144 = async function(machineIndex, productIndex) {
         setFeedback('is-success', 'Verified ' + targetBarcode + ' · +1 item.');
         if (scanInput) scanInput.value = '';
         updateSave();
-        focusScan();
+        if (!deferFocus) focusScan();
         return true;
       } else {
         verified = true;
         setFeedback('is-success', 'Product verified: ' + targetBarcode + '.');
         if (scanInput) { scanInput.value = targetBarcode; scanInput.disabled = true; }
-        if (onceQuantity) onceQuantity.hidden = false;
-        if (qtyInput) { qtyInput.disabled = false; qtyInput.focus(); }
+        if (!deferQuantityReveal && onceQuantity) onceQuantity.hidden = false;
+        if (qtyInput && !deferQuantityReveal) { qtyInput.disabled = false; if (!deferFocus) qtyInput.focus(); }
         updateSave();
         return true;
       }
@@ -7025,44 +7022,53 @@ showRefillProductModalV2144 = async function(machineIndex, productIndex) {
         if (cameraRunning) setCameraUiState(nextState, status, helper);
       }, delay);
     };
-    const rearmCameraBarcode = () => {
-      if (Date.now() - lastCameraSeenAt < 450 || !latchedCameraBarcode) return;
-      latchedCameraBarcode = '';
-      if (mode === 'each' && cameraRunning && cameraEachScanPendingRearm) {
-        cameraEachScanPendingRearm = false;
-        setCameraUiState('ready-next', 'Ready for next item', 'Place next barcode inside the frame');
-        scheduleCameraUiState(650, 'scanning', 'Scanning…', 'Place barcode inside the frame');
-      }
+    const closeSuccessfulCameraScan = completedMode => {
+      if (cameraStopTimer) window.clearTimeout(cameraStopTimer);
+      cameraStopTimer = window.setTimeout(() => {
+        cameraStopTimer = 0;
+        setCameraUiState('closing', 'Scan complete', 'Returning to the refill entry');
+        cameraStopTimer = window.setTimeout(() => {
+          cameraStopTimer = 0;
+          stopCamera();
+          window.requestAnimationFrame(() => {
+            if (completedMode === 'once') {
+              if (onceQuantity) onceQuantity.hidden = false;
+              if (qtyInput) { qtyInput.disabled = false; qtyInput.focus(); }
+            } else focusScan();
+          });
+        }, 180);
+      }, 320);
     };
     const processCameraDetection = rawValue => {
+      if (cameraSuccessfulScanHandled) return false;
       const scanned = refillBarcodeV2211(rawValue);
-      if (!scanned) {
-        rearmCameraBarcode();
-        return false;
-      }
-      lastCameraSeenAt = Date.now();
-      if (scanned === latchedCameraBarcode) return false;
-      latchedCameraBarcode = scanned;
-      const accepted = processScan(scanned);
+      if (!scanned) return false;
+      const isCorrectBarcode = scanned === targetBarcode;
+      if (isCorrectBarcode) cameraSuccessfulScanHandled = true;
+      const accepted = processScan(scanned, { deferFocus: isCorrectBarcode, deferQuantityReveal: isCorrectBarcode && mode === 'once' });
       if (!accepted) {
+        if (isCorrectBarcode) cameraSuccessfulScanHandled = false;
         setCameraUiState('wrong', 'Wrong barcode', 'Expected: ' + targetBarcode + ' · Scanned: ' + scanned);
         vibrateCameraFeedback([30, 40, 30]);
         scheduleCameraUiState(900, 'scanning', 'Scanning…', 'Place barcode inside the frame');
         return false;
       }
+      // Freeze both native and ZXing callbacks before the success state paints.
+      cameraRunning = false;
       vibrateCameraFeedback(65);
       if (mode === 'once') {
         setCameraUiState('success', '✓ Product verified', 'Opening the quantity entry');
-        if (cameraStopTimer) window.clearTimeout(cameraStopTimer);
-        cameraStopTimer = window.setTimeout(() => {
-          cameraStopTimer = 0;
-          stopCamera();
-        }, 700);
+        closeSuccessfulCameraScan('once');
         return true;
       }
       setCameraUiState('success', '✓ +1', 'Total scanned: ' + scannedQty);
-      cameraEachScanPendingRearm = true;
-      scheduleCameraUiState(850, 'locked', 'Item counted', 'Move barcode away to scan the next item');
+      if (cameraSummaryTimer) window.clearTimeout(cameraSummaryTimer);
+      eachSummary?.classList.add('is-camera-confirmed');
+      cameraSummaryTimer = window.setTimeout(() => {
+        cameraSummaryTimer = 0;
+        eachSummary?.classList.remove('is-camera-confirmed');
+      }, 700);
+      closeSuccessfulCameraScan('each');
       return true;
     };
     const scheduleCameraDetection = () => {
@@ -7118,7 +7124,6 @@ showRefillProductModalV2144 = async function(machineIndex, productIndex) {
         (result, _error) => {
           if (!cameraRunning || session !== cameraSession) return;
           if (result) processCameraDetection(result.getText());
-          else rearmCameraBarcode();
         },
       );
       if (session !== cameraSession) {

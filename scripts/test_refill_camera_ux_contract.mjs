@@ -10,7 +10,7 @@ assert.match(workflow, /setCameraUiState[\s\S]*?cameraPane\.dataset\.cameraState
 assert.match(workflow, /'starting', 'Starting camera…', 'Preparing secure camera preview'/, "camera startup must be explained");
 assert.match(workflow, /'scanning', 'Scanning…', 'Place barcode inside the frame'/, "active scanning must have clear guidance");
 assert.match(workflow, /'success', '✓ \+1', 'Total scanned: ' \+ scannedQty/, "Count 1 must show its immediate count confirmation");
-assert.match(workflow, /'ready-next', 'Ready for next item', 'Place next barcode inside the frame'/, "Count 1 must visibly re-arm after absence");
+assert.match(workflow, /'closing', 'Scan complete', 'Returning to the refill entry'/, "successful scans must progress to a closing state instead of re-arming");
 assert.match(workflow, /'wrong', 'Wrong barcode', 'Expected: ' \+ targetBarcode \+ ' · Scanned: ' \+ scanned/, "wrong scans must explain expected and scanned values");
 assert.match(workflow, /'success', '✓ Product verified', 'Opening the quantity entry'/, "Count Multiple must visibly confirm product verification");
 assert.match(workflow, /navigator\.vibrate\?\.|vibrateCameraFeedback/, "scanner feedback must use vibration only when supported");
@@ -19,5 +19,8 @@ assert.match(css, /width:86%[\s\S]*?height:clamp\(110px,31vw,142px\)/, "scan zon
 assert.match(css, /box-shadow:0 0 0 999px/, "outside of the scan zone must receive a subtle overlay");
 assert.match(css, /refill-camera-scan-v2215[\s\S]*?prefers-reduced-motion/, "scan-line animation must respect reduced motion");
 assert.match(css, /data-camera-state="success"[\s\S]*?data-camera-state="wrong"/, "success and wrong states must be visually distinct");
+assert.match(css, /data-camera-state="closing"[\s\S]*?opacity:0/, "successful camera close must use a subtle fade");
+
+assert.doesNotMatch(workflow, /ready-next|rearmCameraBarcode|cameraEachScanPendingRearm/, "Count 1 must not retain the repeated-scan re-arm workflow");
 
 console.log("PASS - mobile refill camera scanner UX contract.");

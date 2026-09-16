@@ -5159,7 +5159,7 @@ body.printing-live-review-v2192 .print-page #page-closing .closing-summary-item:
     .refill-camera-trigger-v2212 { display:grid; position:absolute; top:0; right:0; width:42px; height:42px; place-items:center; padding:0; border:0; border-radius:0 8px 8px 0; background:transparent; color:#344054; cursor:pointer; }
     .refill-camera-trigger-v2212:hover,.refill-camera-trigger-v2212:focus-visible { background:#f1f5f9; color:#1d4ed8; outline:0; }
     .refill-camera-trigger-v2212:disabled { color:#98a2b3; cursor:not-allowed; }
-    .refill-camera-scanner-v2212 { padding:10px; }
+    .refill-camera-scanner-v2212 { padding:10px; transition:opacity 180ms ease,transform 180ms ease; }
     .refill-camera-preview-v2215 { position:relative; overflow:hidden; border-radius:10px; background:#111827; }
     .refill-camera-video-v2212 { max-height:220px; border-radius:10px; }
     .refill-camera-scan-zone-v2215 { position:absolute; top:50%; left:50%; width:86%; height:clamp(110px,31vw,142px); transform:translate(-50%,-50%); overflow:hidden; border:1.5px solid rgb(255 255 255 / .92); border-radius:11px; box-shadow:0 0 0 999px rgb(15 23 42 / .28); transition:border-color .18s ease, box-shadow .18s ease, background-color .18s ease; pointer-events:none; }
@@ -5175,9 +5175,10 @@ body.printing-live-review-v2192 .print-page #page-closing .closing-summary-item:
     .refill-camera-scanner-v2212[data-camera-state="success"] .refill-camera-guidance-v2215 strong { color:#15803d; }
     .refill-camera-scanner-v2212[data-camera-state="wrong"] .refill-camera-scan-zone-v2215 { border-color:#fca5a5; background:rgb(239 68 68 / .08); box-shadow:0 0 0 999px rgb(15 23 42 / .22),0 0 0 3px rgb(239 68 68 / .12); }
     .refill-camera-scanner-v2212[data-camera-state="wrong"] .refill-camera-guidance-v2215 strong { color:#b42318; }
-    .refill-camera-scanner-v2212[data-camera-state="locked"] .refill-camera-scan-zone-v2215 { border-color:rgb(255 255 255 / .7); }
-    .refill-camera-scanner-v2212[data-camera-state="ready-next"] .refill-camera-guidance-v2215 strong { color:#1d4ed8; }
+    .refill-camera-scanner-v2212[data-camera-state="closing"] { opacity:0; transform:scale(.985); pointer-events:none; }
+    .refill-scan-count-v2211.is-camera-confirmed { border-color:#bbf7d0; background:#f0fdf4; transition:border-color 180ms ease,background-color 180ms ease; }
+    .refill-scan-count-v2211.is-camera-confirmed strong { color:#15803d; }
     @keyframes refill-camera-scan-v2215 { from { transform:translateY(0); } to { transform:translateY(calc(clamp(110px,31vw,142px) - 26px)); } }
-    @media (prefers-reduced-motion:reduce) { .refill-camera-scan-line-v2215 { animation:none; } }
+    @media (prefers-reduced-motion:reduce) { .refill-camera-scanner-v2212 { transition:none; }.refill-camera-scan-line-v2215 { animation:none; } }
   }
 }

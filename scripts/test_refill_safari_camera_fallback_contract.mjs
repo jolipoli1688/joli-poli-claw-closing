@@ -13,7 +13,7 @@ assert.match(bundle, /"zxing-browser\.min\.js"/, "the Cloud bundle must copy the
 assert.match(app, /autoplay muted playsinline/, "the mobile preview must remain inline on iPhone Safari");
 assert.match(app, /typeof Detector === 'function'\) await openNativeCamera[\s\S]*?else await openZxingCamera/, "native BarcodeDetector must remain preferred before fallback");
 assert.match(app, /BrowserMultiFormatReader[\s\S]*?decodeFromConstraints[\s\S]*?result\.getText\(\)/, "fallback results must flow through the camera scan handler");
-assert.match(app, /processCameraDetection[\s\S]*?const accepted = processScan\(scanned\)/, "native and fallback scanners must share verification behavior");
+assert.match(app, /processCameraDetection[\s\S]*?const accepted = processScan\(scanned, \{ deferFocus: isCorrectBarcode, deferQuantityReveal: isCorrectBarcode && mode === 'once' \}\)/, "native and fallback scanners must share verification behavior");
 assert.doesNotMatch(app, /Camera scanning is not available on this browser/, "native absence must not leave the old unsupported-browser failure");
 assert.match(app, /Camera access was denied\. Allow camera access or enter the barcode manually\./, "permission denial must be actionable");
 assert.match(app, /No camera is available\. Enter the barcode manually\./, "missing camera must be actionable");
