@@ -5155,6 +5155,17 @@ body.printing-live-review-v2192 .print-page #page-closing .closing-summary-item:
     .refill-verify-section-v2211 { padding:12px; }
   }
   @media (max-width:767px) {
+    body.refill-modal-open-v2217 { overflow:hidden; overscroll-behavior:none; }
+    .modal-backdrop:has(.refill-verification-modal-v2211) { align-items:center; padding:8px; overscroll-behavior:contain; }
+    .refill-verification-modal-v2211 { display:flex; flex-direction:column; width:calc(100vw - 16px); max-width:calc(100vw - 16px); max-height:calc(100vh - 16px); max-height:calc(100dvh - 16px); overflow:hidden; }
+    .refill-verification-modal-v2211 .modal-header,.refill-verification-modal-v2211 .modal-footer { flex:0 0 auto; }
+    .refill-verification-modal-v2211 .modal-body { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding:12px; }
+    .refill-verification-modal-v2211 .modal-footer { position:static; padding:10px 12px calc(10px + env(safe-area-inset-bottom)); }
+    .refill-verification-modal-v2211 input,.refill-verification-modal-v2211 select,.refill-verification-modal-v2211 textarea { font-size:16px !important; }
+    .refill-verification-modal-v2211 .refill-barcode-input-wrap-v2212 .input,.refill-verification-modal-v2211 .refill-manual-quantity-v2211 .input { height:48px; min-height:48px; }
+    .refill-verification-modal-v2211 .refill-adjusted-by-v2211 .input { height:50px; min-height:50px; }
+    .refill-verification-modal-v2211 .refill-cell-history-list { max-height:none; overflow:visible; }
+    .refill-verification-modal-v2211 .refill-camera-scanner-v2212 { touch-action:pan-y; }
     .refill-barcode-input-wrap-v2212 .input { height:42px; padding-right:48px; }
     .refill-camera-trigger-v2212 { display:grid; position:absolute; top:0; right:0; width:42px; height:42px; place-items:center; padding:0; border:0; border-radius:0 8px 8px 0; background:transparent; color:#344054; cursor:pointer; }
     .refill-camera-trigger-v2212:hover,.refill-camera-trigger-v2212:focus-visible { background:#f1f5f9; color:#1d4ed8; outline:0; }
@@ -5180,5 +5191,8 @@ body.printing-live-review-v2192 .print-page #page-closing .closing-summary-item:
     .refill-scan-count-v2211.is-camera-confirmed strong { color:#15803d; }
     @keyframes refill-camera-scan-v2215 { from { transform:translateY(0); } to { transform:translateY(calc(clamp(110px,31vw,142px) - 26px)); } }
     @media (prefers-reduced-motion:reduce) { .refill-camera-scanner-v2212 { transition:none; }.refill-camera-scan-line-v2215 { animation:none; } }
+  }
+  @media (max-width:359px) {
+    .refill-verification-modal-v2211 .refill-scan-methods-v2211 { grid-template-columns:1fr; }
   }
 }

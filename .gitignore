@@ -5,6 +5,7 @@ local_data_fixture_backup_*/
 
 # Future frontend/runtime
 node_modules/
+.vercel/
 dist/
 .env
 .env.*

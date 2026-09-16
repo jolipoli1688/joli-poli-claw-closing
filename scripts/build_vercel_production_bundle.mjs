@@ -1,6 +1,7 @@
 "use strict";
 
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -44,13 +45,28 @@ if (!html.includes(localRuntime)) throw new Error("The accepted local runtime ma
 html = html.replace(localRuntime, cloudRuntime).replaceAll('src="./assets/', 'src="/assets/');
 if (html.includes('window.__CLAW_RUNTIME_MODE__="local"') || html.includes('./claw-api.js?v=2.1.78-local-uat-1')) throw new Error("Local runtime leaked into the production bundle.");
 
-rmSync(output, { recursive: true, force: true });
-mkdirSync(path.join(output, "assets"), { recursive: true });
-for (const file of ["app.js", "styles.css", "brand-logo.png", "zxing-browser.min.js"]) cpSync(path.join(web, "assets", file), path.join(output, "assets", file));
-for (const file of ["claw-api.js", "cloud-api-adapter.js", "cloud-profile.js", "cloud-user-management.js"]) cpSync(path.join(web, file), path.join(output, file));
-const cloudRuntimeSource = readFileSync(path.join(web, "cloud-runtime.js"), "utf8").replaceAll('src="./assets/', 'src="/assets/');
-writeFileSync(path.join(output, "cloud-runtime.js"), cloudRuntimeSource, "utf8");
-writeFileSync(path.join(output, "index.html"), html, "utf8");
-writeFileSync(path.join(output, "vercel.json"), `${JSON.stringify({ rewrites: [{ source: "/(.*)", destination: "/index.html" }] }, null, 2)}\n`, "utf8");
+const vercelLink = path.join(output, ".vercel");
+let vercelLinkBackup = "";
+if (existsSync(vercelLink)) {
+  vercelLinkBackup = mkdtempSync(path.join(tmpdir(), "joli-poli-vercel-link-"));
+  cpSync(vercelLink, path.join(vercelLinkBackup, ".vercel"), { recursive: true });
+}
+
+try {
+  rmSync(output, { recursive: true, force: true });
+  mkdirSync(path.join(output, "assets"), { recursive: true });
+  for (const file of ["app.js", "styles.css", "brand-logo.png", "zxing-browser.min.js"]) cpSync(path.join(web, "assets", file), path.join(output, "assets", file));
+  for (const file of ["claw-api.js", "cloud-api-adapter.js", "cloud-profile.js", "cloud-user-management.js"]) cpSync(path.join(web, file), path.join(output, file));
+  const cloudRuntimeSource = readFileSync(path.join(web, "cloud-runtime.js"), "utf8").replaceAll('src="./assets/', 'src="/assets/');
+  writeFileSync(path.join(output, "cloud-runtime.js"), cloudRuntimeSource, "utf8");
+  writeFileSync(path.join(output, "index.html"), html, "utf8");
+  writeFileSync(path.join(output, "vercel.json"), `${JSON.stringify({ rewrites: [{ source: "/(.*)", destination: "/index.html" }] }, null, 2)}\n`, "utf8");
+} finally {
+  if (vercelLinkBackup) {
+    mkdirSync(output, { recursive: true });
+    cpSync(path.join(vercelLinkBackup, ".vercel"), vercelLink, { recursive: true });
+    rmSync(vercelLinkBackup, { recursive: true, force: true });
+  }
+}
 
 console.log("PASS - Vercel Cloud production bundle generated without local runtime or server credentials.");
